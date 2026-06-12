@@ -24,6 +24,7 @@ App móvil interna para empleados de Nun Ibiza. Centraliza noticias, eventos, ch
 ## Instalación
 
 ```bash
+# Instalar dependencias
 pnpm install
 ```
 
