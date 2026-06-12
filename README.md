@@ -96,6 +96,10 @@ npx supabase gen types typescript --local > lib/database.types.ts
     └── functions/           # Edge Functions (Deno runtime)
 ```
 
+## Documentación
+
+La documentación completa del proyecto (arquitectura, diseño, decisiones técnicas) está en [Notion](https://www.notion.so/nun-ibiza-pinboard).
+
 ## Convenciones
 
 - Todo el código en **TypeScript** (`.ts` / `.tsx`). Sin archivos `.js` / `.jsx`.
