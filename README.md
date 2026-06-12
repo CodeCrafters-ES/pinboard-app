@@ -37,6 +37,20 @@ EXPO_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 ```
 
+## Scripts disponibles
+
+| Comando | Descripción |
+|---|---|
+| `pnpm dev` | Servidor Metro (Expo Go / dev client) |
+| `pnpm dev:ios` | Abre directamente en simulador iOS |
+| `pnpm dev:android` | Abre directamente en emulador Android |
+| `pnpm lint` | ESLint — cero warnings permitidos |
+| `pnpm format` | Prettier — formatea todo el proyecto |
+| `pnpm typecheck` | TypeScript — comprueba tipos sin emitir |
+| `pnpm test` | Jest — ejecuta la suite de tests |
+| `pnpm build:ios` | EAS Build para iOS |
+| `pnpm build:android` | EAS Build para Android |
+
 ## Ejecución
 
 ```bash
