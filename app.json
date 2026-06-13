@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Nun Ibiza",
+    "slug": "nun-ibiza",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "plugins": ["expo-router"],
+    "scheme": "nun-ibiza"
+  }
+}
