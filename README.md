@@ -1,5 +1,7 @@
 # Nun Ibiza — PinBoard App
 
+[![CI](https://github.com/CodeCrafters-ES/pinboard-app/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeCrafters-ES/pinboard-app/actions/workflows/ci.yml)
+
 App móvil interna para empleados de Nun Ibiza. Centraliza noticias, eventos, chat y comunicación del equipo en un entorno corporativo seguro.
 
 ## Stack
