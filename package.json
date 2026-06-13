@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
+  "packageManager": "pnpm@9",
   "scripts": {
     "dev": "expo start",
     "dev:ios": "expo start --ios",

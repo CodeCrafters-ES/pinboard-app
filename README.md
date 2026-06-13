@@ -100,6 +100,14 @@ npx supabase gen types typescript --local > lib/database.types.ts
 
 La documentación completa del proyecto (arquitectura, diseño, decisiones técnicas) está en [Notion](https://www.notion.so/nun-ibiza-pinboard).
 
+## CI / Pipeline local
+
+El pipeline de CI se ejecuta automáticamente en cada PR y push a `main`. Para reproducirlo en local:
+
+```bash
+pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test
+```
+
 ## Convenciones
 
 - Todo el código en **TypeScript** (`.ts` / `.tsx`). Sin archivos `.js` / `.jsx`.
