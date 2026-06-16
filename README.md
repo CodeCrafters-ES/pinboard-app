@@ -70,7 +70,7 @@ npx expo run:ios
 
 ```bash
 # Arrancar entorno local (Docker)
-npx supabase start
+pnpm run supabase:start
 
 # Aplicar migraciones
 npx supabase db push
