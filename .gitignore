@@ -18,3 +18,12 @@ dist/
 
 # OS
 .DS_Store
+
+# Credenciales push / firma (nunca commitear — guardar en gestor de secretos)
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+google-services*.json
+GoogleService-Info.plist
