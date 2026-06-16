@@ -13,5 +13,8 @@ dist/
 # Logs
 *.log
 
+# Supabase local CLI
+.supabase/
+
 # OS
 .DS_Store
