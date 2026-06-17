@@ -2,7 +2,7 @@
 -- SEED FILE — Nun Ibiza PinBoard App
 -- PURPOSE : Development and testing only. NOT FOR PRODUCTION.
 -- WARNING : These users are fictional. Do not use real credentials here.
--- Reset   : pnpm db:reset (runs supabase db reset which applies this file)
+-- Reset   : pnpm supabase:reset (runs supabase db reset which applies this file)
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
