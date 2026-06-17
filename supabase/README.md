@@ -42,6 +42,27 @@ Extiende `auth.users` con datos de aplicación. Una fila por usuario autenticado
 
 > La autorización vive en Postgres (RLS). El cliente puede ocultar elementos de UI pero nunca es la fuente de verdad de seguridad.
 
+## Helpers de rol (`auth_role`, `is_admin`, `is_manager`, `is_staff`)
+
+Las cuatro funciones helper en `public` encapsulan la lógica de autorización usada por todas las policies RLS.
+
+| Función | Atributo | Devuelve |
+|---|---|---|
+| `auth_role()` | `SECURITY DEFINER`, `search_path = public, auth` | `user_role` o `null` sin sesión |
+| `is_admin()` | `STABLE` | `true` solo para `admin`; `false` si no hay sesión |
+| `is_manager()` | `STABLE` | `true` para `admin` y `manager` (jerarquía inclusiva) |
+| `is_staff()` | `STABLE` | `true` para cualquier rol autenticado |
+
+### Modelo de privilegios
+
+**Los helpers no son ejecutables por `anon`.** La decisión es deliberada:
+
+- `EXECUTE` revocado a `PUBLIC` → cubre `anon` y cualquier rol no listado.
+- `EXECUTE` concedido únicamente a `authenticated` y `service_role`.
+- Owner fijado a `postgres` para que `SECURITY DEFINER` en `auth_role()` pueda leer `public.profiles` con un rol de confianza.
+
+Las policies RLS que usen estos helpers asumen sesión autenticada (`auth.uid() IS NOT NULL`). Una petición `anon` que alcance una policy con `is_admin()` recibirá `permission denied for function is_admin` antes de que la query llegue a evaluar filas.
+
 ## Seed de desarrollo
 
 El archivo `seed.sql` crea tres usuarios ficticios (uno por rol) al ejecutar `pnpm supabase:reset`:
