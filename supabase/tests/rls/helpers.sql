@@ -2,7 +2,7 @@
 -- Depends on seed.sql (aaaaaaaa-* users with admin / manager / staff roles)
 BEGIN;
 
-SELECT plan(14);
+SELECT plan(19);
 
 -- ── Function existence ────────────────────────────────────────────────────────
 
@@ -95,25 +95,64 @@ SELECT is(
   'is_manager() returns true for admin seed user (inclusive hierarchy)'
 );
 
+-- 11. Positive: is_staff() returns true for admin (inclusive hierarchy)
+SELECT is(
+  public.is_staff(),
+  true,
+  'is_staff() returns true for admin seed user (inclusive hierarchy)'
+);
+
+-- Switch session to manager seed user
+SELECT set_config('request.jwt.claim.sub',
+                  'aaaaaaaa-0000-0000-0000-000000000002', true);
+
+-- 12. Positive: auth_role() returns 'manager' for the manager seed user
+SELECT is(
+  public.auth_role()::text,
+  'manager',
+  'auth_role() returns manager for the manager seed user'
+);
+
+-- 13. Negative: is_admin() returns false for manager seed user
+SELECT is(
+  public.is_admin(),
+  false,
+  'is_admin() returns false for manager seed user'
+);
+
+-- 14. Positive: is_manager() returns true for manager seed user
+SELECT is(
+  public.is_manager(),
+  true,
+  'is_manager() returns true for manager seed user'
+);
+
+-- 15. Positive: is_staff() returns true for manager seed user (inclusive hierarchy)
+SELECT is(
+  public.is_staff(),
+  true,
+  'is_staff() returns true for manager seed user (inclusive hierarchy)'
+);
+
 -- Switch session to staff seed user
 SELECT set_config('request.jwt.claim.sub',
                   'aaaaaaaa-0000-0000-0000-000000000003', true);
 
--- 11. Negative: is_admin() returns false for staff seed user
+-- 16. Negative: is_admin() returns false for staff seed user
 SELECT is(
   public.is_admin(),
   false,
   'is_admin() returns false for staff seed user'
 );
 
--- 12. Negative: is_manager() returns false for staff seed user
+-- 17. Negative: is_manager() returns false for staff seed user
 SELECT is(
   public.is_manager(),
   false,
   'is_manager() returns false for staff seed user'
 );
 
--- 13. Positive: is_staff() returns true for staff seed user
+-- 18. Positive: is_staff() returns true for staff seed user
 SELECT is(
   public.is_staff(),
   true,
@@ -123,7 +162,7 @@ SELECT is(
 -- Clear session (simulate anon / no JWT)
 SELECT set_config('request.jwt.claim.sub', '', true);
 
--- 14. Negative: is_admin() returns false (not null) when no session
+-- 19. Negative: is_admin() returns false (not null) when no session
 SELECT is(
   public.is_admin(),
   false,
