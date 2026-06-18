@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import * as Notifications from 'expo-notifications';
 
 import { supabase } from './supabase';
+import type { Database } from './database.types';
 
 export async function signInWithPassword(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -35,6 +36,22 @@ export async function getCurrentProfile(userId: string) {
     .from('profiles')
     .select('*')
     .eq('user_id', userId)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export type ProfilePatch = Pick<
+  Database['public']['Tables']['profiles']['Update'],
+  'name' | 'surname' | 'title' | 'avatar_url'
+>;
+
+export async function updateOwnProfile(userId: string, patch: ProfilePatch) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(patch)
+    .eq('user_id', userId)
+    .select()
     .single();
   if (error) throw error;
   return data;
