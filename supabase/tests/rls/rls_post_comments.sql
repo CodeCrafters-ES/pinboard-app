@@ -1,0 +1,112 @@
+-- RLS tests: post_comments table
+-- Policies: post_comments_select_authenticated, post_comments_insert_self,
+--           post_comments_update_self, post_comments_delete_self_or_admin
+-- refs: docs/adr/0002-rbac.md
+--
+-- Seed UUIDs (supabase/seed.sql):
+--   admin:   aaaaaaaa-0000-0000-0000-000000000001
+--   manager: aaaaaaaa-0000-0000-0000-000000000002
+--   staff:   aaaaaaaa-0000-0000-0000-000000000003
+
+begin;
+select plan(6);
+
+create or replace function pg_temp.set_session(uid uuid)
+returns void language sql as $$
+  select set_config(
+    'request.jwt.claims',
+    json_build_object('sub', uid::text, 'role', 'authenticated')::text,
+    true
+  );
+$$;
+
+-- Fixtures
+insert into public.posts (id, author_id, title, body)
+values ('eeeeeeee-0000-0000-0000-000000000001'::uuid,
+        'aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'Post for comments', 'Body');
+
+insert into public.post_comments (id, post_id, author_id, body)
+values ('eeeeeeee-0000-0000-0000-000000000010'::uuid,
+        'eeeeeeee-0000-0000-0000-000000000001'::uuid,
+        'aaaaaaaa-0000-0000-0000-000000000002'::uuid,  -- manager owns this comment
+        'Manager comment');
+
+-- ── SELECT ────────────────────────────────────────────────────────────────────
+
+-- Positive: staff can read comments
+select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
+
+select results_eq(
+  $test$ select count(*)::int from public.post_comments $test$,
+  $expected$ values (1) $expected$,
+  'staff puede leer comentarios'
+);
+
+-- ── INSERT ────────────────────────────────────────────────────────────────────
+
+-- Positive: staff can insert their own comment
+select lives_ok(
+  $test$
+    insert into public.post_comments (post_id, author_id, body)
+    values ('eeeeeeee-0000-0000-0000-000000000001'::uuid,
+            'aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'Staff comment')
+  $test$,
+  'staff puede insertar su propio comentario'
+);
+
+-- ── DELETE ────────────────────────────────────────────────────────────────────
+
+-- Positive: staff can delete their own comment
+select lives_ok(
+  $test$
+    delete from public.post_comments
+    where post_id = 'eeeeeeee-0000-0000-0000-000000000001'::uuid
+      and author_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
+  $test$,
+  'staff puede borrar su propio comentario'
+);
+
+-- Negative: staff cannot delete another user's comment
+select throws_ok(
+  $test$
+    delete from public.post_comments
+    where id = 'eeeeeeee-0000-0000-0000-000000000010'::uuid
+  $test$,
+  '42501',
+  null,
+  'staff no puede borrar el comentario de otro usuario'
+);
+
+-- Positive: admin can delete (moderate) any comment
+select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000001'::uuid);
+
+select lives_ok(
+  $test$
+    delete from public.post_comments
+    where id = 'eeeeeeee-0000-0000-0000-000000000010'::uuid
+  $test$,
+  'admin puede moderar (borrar) cualquier comentario'
+);
+
+-- Negative: staff cannot update another user's comment
+select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
+
+-- Re-insert the manager comment since it was deleted above
+insert into public.post_comments (id, post_id, author_id, body)
+values ('eeeeeeee-0000-0000-0000-000000000011'::uuid,
+        'eeeeeeee-0000-0000-0000-000000000001'::uuid,
+        'aaaaaaaa-0000-0000-0000-000000000002'::uuid,
+        'Manager comment 2');
+
+select throws_ok(
+  $test$
+    update public.post_comments set body = 'Tampered'
+    where id = 'eeeeeeee-0000-0000-0000-000000000011'::uuid
+  $test$,
+  '42501',
+  null,
+  'staff no puede editar el comentario de otro usuario'
+);
+
+select * from finish();
+rollback;
