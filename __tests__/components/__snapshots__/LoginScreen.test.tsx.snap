@@ -1,0 +1,188 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`LoginScreen renders correctly (snapshot) 1`] = `
+<View
+  className="flex-1 bg-nun-linen"
+>
+  <View
+    className="flex-1"
+    onLayout={[Function]}
+    style={
+      {
+        "paddingBottom": 0,
+      }
+    }
+  >
+    <RCTScrollView
+      className="flex-1"
+      contentContainerClassName="flex-grow justify-center px-5 py-8"
+      keyboardShouldPersistTaps="handled"
+    >
+      <View>
+        <View
+          className="items-center mb-8"
+        >
+          <Text
+            className="text-[32px] font-bold text-nun-brown tracking-tight"
+          >
+            nūn
+          </Text>
+          <Text
+            className="text-[15px] text-nun-muted text-center mt-1 leading-snug"
+          >
+            Elegancia mediterránea para tu gestión diaria.
+          </Text>
+        </View>
+        <View
+          className="bg-white rounded-2xl shadow-sm p-6 gap-4"
+        >
+          <View
+            className="gap-1.5"
+          >
+            <Text
+              className="text-[13px] font-medium text-nun-dark"
+            >
+              Email
+            </Text>
+            <View
+              className="flex-row items-center bg-nun-sand border rounded-xl px-4 py-3 gap-2 border-nun-parchment"
+            >
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                className="flex-1 text-[15px] text-nun-dark"
+                editable={true}
+                keyboardType="email-address"
+                onChangeText={[Function]}
+                placeholder="nombre@nunibiza.com"
+                placeholderTextColor="#8C7B6A"
+                textContentType="emailAddress"
+                value=""
+              />
+            </View>
+          </View>
+          <View
+            className="gap-1.5"
+          >
+            <Text
+              className="text-[13px] font-medium text-nun-dark"
+            >
+              Contraseña
+            </Text>
+            <View
+              className="flex-row items-center bg-nun-sand border rounded-xl px-4 py-3 gap-2 border-nun-parchment"
+            >
+              <TextInput
+                className="flex-1 text-[15px] text-nun-dark"
+                editable={true}
+                onChangeText={[Function]}
+                onSubmitEditing={[Function]}
+                placeholder="••••••••"
+                placeholderTextColor="#8C7B6A"
+                returnKeyType="go"
+                secureTextEntry={true}
+                textContentType="password"
+                value=""
+              />
+            </View>
+          </View>
+          <View
+            accessibilityLabel="Entrar"
+            accessibilityRole="button"
+            accessibilityState={
+              {
+                "busy": undefined,
+                "checked": undefined,
+                "disabled": false,
+                "expanded": undefined,
+                "selected": undefined,
+              }
+            }
+            accessibilityValue={
+              {
+                "max": undefined,
+                "min": undefined,
+                "now": undefined,
+                "text": undefined,
+              }
+            }
+            accessible={true}
+            className="bg-nun-brown rounded-xl py-4 items-center justify-center active:opacity-80 "
+            collapsable={false}
+            focusable={true}
+            onBlur={[Function]}
+            onClick={[Function]}
+            onFocus={[Function]}
+            onResponderGrant={[Function]}
+            onResponderMove={[Function]}
+            onResponderRelease={[Function]}
+            onResponderTerminate={[Function]}
+            onResponderTerminationRequest={[Function]}
+            onStartShouldSetResponder={[Function]}
+          >
+            <Text
+              className="text-white text-[15px] font-semibold"
+            >
+              Entrar →
+            </Text>
+          </View>
+          <View
+            className="items-center gap-1"
+          >
+            <View
+              accessibilityRole="link"
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": false,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              onBlur={[Function]}
+              onClick={[Function]}
+              onFocus={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+            >
+              <Text
+                className="text-xs text-nun-sea "
+              >
+                ¿Olvidaste tu contraseña?
+              </Text>
+            </View>
+          </View>
+        </View>
+        <Text
+          className="text-xs text-nun-muted text-center mt-4"
+        >
+          El acceso lo gestiona tu administrador
+        </Text>
+        <View
+          className="mt-5 h-36 rounded-2xl bg-nun-sky overflow-hidden"
+        >
+          <View
+            className="absolute inset-0 bg-nun-sand opacity-30"
+          />
+        </View>
+      </View>
+    </RCTScrollView>
+  </View>
+</View>
+`;

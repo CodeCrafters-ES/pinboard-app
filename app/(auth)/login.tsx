@@ -11,9 +11,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AtSign, Lock } from 'lucide-react-native';
 
-import { signInWithPassword } from '@/lib/auth';
+import { signInWithPassword, resetPasswordForEmail } from '@/lib/auth';
 
-type AuthError = 'invalid_credentials' | 'email_not_confirmed' | 'network' | null;
+// ─── Validation ────────────────────────────────────────────────────────────
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateEmail(v: string) {
+  if (!v.trim()) return 'El correo es obligatorio.';
+  if (!EMAIL_REGEX.test(v.trim())) return 'Introduce un correo válido.';
+  return null;
+}
+
+function validatePassword(v: string) {
+  if (!v) return 'La contraseña es obligatoria.';
+  if (v.length < 8) return 'Mínimo 8 caracteres.';
+  return null;
+}
+
+// ─── Auth error classification ──────────────────────────────────────────────
+
+type AuthError = 'invalid_credentials' | 'email_not_confirmed' | 'network';
 
 function classifyError(message: string): AuthError {
   if (message.includes('Invalid login credentials')) return 'invalid_credentials';
@@ -21,34 +39,62 @@ function classifyError(message: string): AuthError {
   return 'network';
 }
 
-const ERROR_MESSAGES: Record<NonNullable<AuthError>, string> = {
+const AUTH_ERROR_MESSAGES: Record<AuthError, string> = {
   invalid_credentials: 'Correo o contraseña incorrectos.',
   email_not_confirmed: 'Confirma tu correo antes de entrar.',
   network: 'Sin conexión. Comprueba tu red.',
 };
 
+// ─── Component ──────────────────────────────────────────────────────────────
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<AuthError>(null);
+
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<AuthError | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0 && !isSubmitting;
+  // Forgot password states
+  type ForgotStatus = 'idle' | 'sending' | 'sent' | 'error';
+  const [forgotStatus, setForgotStatus] = useState<ForgotStatus>('idle');
 
   async function handleLogin() {
-    if (!canSubmit) return;
-    setError(null);
+    const eErr = validateEmail(email);
+    const pErr = validatePassword(password);
+    setEmailError(eErr);
+    setPasswordError(pErr);
+    if (eErr || pErr) return;
+
+    setAuthError(null);
     setIsSubmitting(true);
     try {
       await signInWithPassword(email.trim(), password);
       // Navigation handled automatically by useSession + AppLayout guard
     } catch (e) {
-      const message = e instanceof Error ? e.message : '';
-      setError(classifyError(message));
+      setAuthError(classifyError(e instanceof Error ? e.message : ''));
     } finally {
       setIsSubmitting(false);
     }
   }
+
+  async function handleForgotPassword() {
+    const eErr = validateEmail(email);
+    if (eErr) {
+      setEmailError(eErr);
+      return;
+    }
+    setForgotStatus('sending');
+    try {
+      await resetPasswordForEmail(email.trim());
+      setForgotStatus('sent');
+    } catch {
+      setForgotStatus('error');
+    }
+  }
+
+  const canSubmit = !isSubmitting;
 
   return (
     <SafeAreaView className="flex-1 bg-nun-linen">
@@ -71,17 +117,18 @@ export default function LoginScreen() {
 
           {/* Form card */}
           <View className="bg-white rounded-2xl shadow-sm p-6 gap-4">
+
             {/* Email */}
             <View className="gap-1.5">
               <Text className="text-[13px] font-medium text-nun-dark">Email</Text>
-              <View className="flex-row items-center bg-nun-sand border border-nun-parchment rounded-xl px-4 py-3 gap-2">
-                <AtSign size={16} color="#8C7B6A" />
+              <View className={`flex-row items-center bg-nun-sand border rounded-xl px-4 py-3 gap-2 ${emailError ? 'border-nun-error' : 'border-nun-parchment'}`}>
+                <AtSign size={16} color={emailError ? '#C0392B' : '#8C7B6A'} />
                 <TextInput
                   className="flex-1 text-[15px] text-nun-dark"
                   placeholder="nombre@nunibiza.com"
                   placeholderTextColor="#8C7B6A"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(v) => { setEmail(v); setEmailError(null); setForgotStatus('idle'); }}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
@@ -89,19 +136,22 @@ export default function LoginScreen() {
                   editable={!isSubmitting}
                 />
               </View>
+              {emailError && (
+                <Text className="text-xs text-nun-error">{emailError}</Text>
+              )}
             </View>
 
             {/* Password */}
             <View className="gap-1.5">
               <Text className="text-[13px] font-medium text-nun-dark">Contraseña</Text>
-              <View className="flex-row items-center bg-nun-sand border border-nun-parchment rounded-xl px-4 py-3 gap-2">
-                <Lock size={16} color="#8C7B6A" />
+              <View className={`flex-row items-center bg-nun-sand border rounded-xl px-4 py-3 gap-2 ${passwordError ? 'border-nun-error' : 'border-nun-parchment'}`}>
+                <Lock size={16} color={passwordError ? '#C0392B' : '#8C7B6A'} />
                 <TextInput
                   className="flex-1 text-[15px] text-nun-dark"
                   placeholder="••••••••"
                   placeholderTextColor="#8C7B6A"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(v) => { setPassword(v); setPasswordError(null); }}
                   secureTextEntry
                   textContentType="password"
                   editable={!isSubmitting}
@@ -109,12 +159,15 @@ export default function LoginScreen() {
                   returnKeyType="go"
                 />
               </View>
+              {passwordError && (
+                <Text className="text-xs text-nun-error">{passwordError}</Text>
+              )}
             </View>
 
-            {/* Error message */}
-            {error && (
+            {/* Auth error */}
+            {authError && (
               <Text className="text-xs text-nun-error -mt-1">
-                {ERROR_MESSAGES[error]}
+                {AUTH_ERROR_MESSAGES[authError]}
               </Text>
             )}
 
@@ -130,6 +183,29 @@ export default function LoginScreen() {
                 {isSubmitting ? 'Entrando…' : 'Entrar →'}
               </Text>
             </Pressable>
+
+            {/* Forgot password */}
+            <View className="items-center gap-1">
+              {forgotStatus === 'sent' ? (
+                <Text className="text-xs text-nun-sage text-center">
+                  Hemos enviado un enlace de recuperación a tu correo.
+                </Text>
+              ) : forgotStatus === 'error' ? (
+                <Text className="text-xs text-nun-error text-center">
+                  No pudimos enviar el correo. Inténtalo de nuevo.
+                </Text>
+              ) : (
+                <Pressable
+                  onPress={handleForgotPassword}
+                  disabled={forgotStatus === 'sending'}
+                  accessibilityRole="link"
+                >
+                  <Text className={`text-xs text-nun-sea ${forgotStatus === 'sending' ? 'opacity-50' : ''}`}>
+                    {forgotStatus === 'sending' ? 'Enviando…' : '¿Olvidaste tu contraseña?'}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
 
           {/* Caption */}

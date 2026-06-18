@@ -23,11 +23,22 @@ export async function signOut() {
   if (error) throw error;
 }
 
-export async function ensureProfile(userId: string) {
-  const { data } = await supabase
+export async function resetPasswordForEmail(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: 'nun-ibiza://auth/reset-password',
+  });
+  if (error) throw error;
+}
+
+export async function getCurrentProfile(userId: string) {
+  const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('user_id', userId)
     .single();
+  if (error) throw error;
   return data;
 }
+
+/** @deprecated Use getCurrentProfile */
+export const ensureProfile = getCurrentProfile;
