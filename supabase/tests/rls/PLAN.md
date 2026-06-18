@@ -128,7 +128,7 @@ El PR debe incluir **policy + test en el mismo commit/rama**. No se aceptan poli
 |---|---|---|
 | Helpers de rol (F-S00-02) | `helpers.sql` | ✅ Implementado |
 | Grants/revokes (F-S00-02) | `helpers_grants.sql` | ✅ Implementado |
-| `profiles` (F-S00-04) | _pendiente_ | ⏳ F-S00-04 |
+| `profiles` (F-S00-04) | `rls_profiles_select.sql`, `rls_profiles_insert.sql`, `rls_profiles_update.sql`, `rls_profiles_delete.sql` | ✅ Implementado |
 | `posts` (F-S00-04) | _pendiente_ | ⏳ F-S00-04 |
 | `post_reactions` (F-S00-04) | _pendiente_ | ⏳ F-S00-04 |
 | `post_ratings` (F-S00-04) | _pendiente_ | ⏳ F-S00-04 |
