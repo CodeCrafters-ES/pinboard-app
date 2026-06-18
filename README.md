@@ -102,6 +102,14 @@ npx supabase gen types typescript --local > lib/database.types.ts
 
 La documentación completa del proyecto (arquitectura, diseño, decisiones técnicas) está en [Notion](https://www.notion.so/nun-ibiza-pinboard).
 
+### Arquitectura — ADRs
+
+Las decisiones técnicas significativas se documentan como ADRs en `docs/adr/`:
+
+| ADR | Título | Estado |
+|---|---|---|
+| [ADR-002](docs/adr/0002-rbac.md) | Control de acceso basado en roles (RBAC) + RLS | Aceptado |
+
 ## CI / Pipeline local
 
 El pipeline de CI se ejecuta automáticamente en cada PR y push a `main`. Para reproducirlo en local:

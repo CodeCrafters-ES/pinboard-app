@@ -75,6 +75,12 @@ El archivo `seed.sql` crea tres usuarios ficticios (uno por rol) al ejecutar `pn
 
 > **AVISO:** El seed no es apto para producción. Los UUIDs de estos usuarios tienen prefijo `aaaaaaaa-0000-...` para identificarlos fácilmente como datos ficticios.
 
+## Arquitectura — ADRs
+
+Las decisiones de autorización y seguridad están documentadas en:
+
+- [ADR-002 — RBAC + RLS](../docs/adr/0002-rbac.md): matriz de permisos por rol y recurso (DB + Storage), convenciones para nuevos recursos.
+
 ## Comandos habituales
 
 ```bash
