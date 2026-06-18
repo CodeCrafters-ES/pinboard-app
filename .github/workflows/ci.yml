@@ -41,3 +41,38 @@ jobs:
 
       - name: Build (EAS check)
         run: npx expo export --platform web || true
+
+  rls-tests:
+    name: RLS Tests (optional)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true  # non-blocking until F-S00-04 is complete
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase local stack
+        run: supabase start
+
+      - name: Run RLS tests
+        run: pnpm supabase:test:rls
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: supabase stop

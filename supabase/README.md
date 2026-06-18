@@ -75,6 +75,19 @@ El archivo `seed.sql` crea tres usuarios ficticios (uno por rol) al ejecutar `pn
 
 > **AVISO:** El seed no es apto para producción. Los UUIDs de estos usuarios tienen prefijo `aaaaaaaa-0000-...` para identificarlos fácilmente como datos ficticios.
 
+## Cómo añadir un test de RLS
+
+Cada policy nueva necesita su fichero de test antes de llegar a `main`. Pasos:
+
+1. Copia `supabase/tests/rls/_template.sql` y renómbralo `rls_<tabla>_<accion>.sql`.
+2. Rellena los casos positivo y negativo siguiendo los comentarios de la plantilla.
+3. Si el test necesita datos propios (un post, un evento…), créalos dentro de la transacción; el `ROLLBACK` final los limpia.
+4. Verifica localmente:
+   ```bash
+   pnpm supabase:test:rls
+   ```
+5. Abre el PR con **policy + migración + test juntos**. Ver gate de merge en [`supabase/tests/rls/PLAN.md`](tests/rls/PLAN.md).
+
 ## Arquitectura — ADRs
 
 Las decisiones de autorización y seguridad están documentadas en:
