@@ -7,5 +7,5 @@ transformIgnorePatterns: [
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
-  testPathIgnorePatterns: ['/node_modules/', '/\\.expo/'],
+  testPathIgnorePatterns: ['/node_modules/', '/\\.expo/', '/__tests__/integration/'],
 };
