@@ -1,14 +1,23 @@
+import { useEffect } from 'react';
 import { Redirect, Slot, useSegments } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 
 import { useSession } from '@/hooks/useSession';
 
 export default function AppLayout() {
-  const { session, loading } = useSession();
+  const { session, status } = useSession();
   const segments = useSegments() as string[];
 
-  if (loading) return null;
+  // Request push notification permissions once the user is authenticated
+  useEffect(() => {
+    if (status === 'authenticated') {
+      Notifications.requestPermissionsAsync();
+    }
+  }, [status]);
 
-  if (session === null) {
+  if (status === 'loading') return null;
+
+  if (status === 'unauthenticated' || !session) {
     return <Redirect href="/(auth)/login" />;
   }
 

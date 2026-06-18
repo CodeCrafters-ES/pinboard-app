@@ -1,37 +1,59 @@
 import { useEffect, useState } from 'react';
 
 import { supabase } from '@/lib/supabase';
-import type { UserRole } from '@/lib/database.types';
+import type { Database, UserRole } from '@/lib/database.types';
 
-export type Session = { role: UserRole; userId: string } | null;
+export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
+export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type Session = { userId: string; role: UserRole };
 
-export function useSession(): { session: Session; loading: boolean } {
-  const [session, setSession] = useState<Session>(null);
-  const [loading, setLoading] = useState(true);
+export function useSession(): { session: Session | null; profile: Profile | null; status: SessionStatus } {
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [status, setStatus] = useState<SessionStatus>('loading');
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-      setSession(s ? await resolveProfile(s.user.id) : null);
-      setLoading(false);
+      if (s) {
+        const resolved = await fetchProfile(s.user.id);
+        setSession(resolved?.sessionInfo ?? null);
+        setProfile(resolved?.profileData ?? null);
+        setStatus(resolved ? 'authenticated' : 'unauthenticated');
+      } else {
+        setStatus('unauthenticated');
+      }
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, s) => {
-      setSession(s ? await resolveProfile(s.user.id) : null);
+      if (s) {
+        const resolved = await fetchProfile(s.user.id);
+        setSession(resolved?.sessionInfo ?? null);
+        setProfile(resolved?.profileData ?? null);
+        setStatus(resolved ? 'authenticated' : 'unauthenticated');
+      } else {
+        setSession(null);
+        setProfile(null);
+        setStatus('unauthenticated');
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  return { session, loading };
+  return { session, profile, status };
 }
 
-async function resolveProfile(userId: string): Promise<Session> {
+async function fetchProfile(userId: string): Promise<{ sessionInfo: Session; profileData: Profile } | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('role')
+    .select('*')
     .eq('user_id', userId)
     .single();
-  return data ? { role: data.role, userId } : null;
+  if (!data) return null;
+  return {
+    sessionInfo: { userId, role: data.role as UserRole },
+    profileData: data,
+  };
 }
