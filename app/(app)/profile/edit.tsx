@@ -64,7 +64,7 @@ export default function EditProfileScreen() {
       setSurname(profile.surname ?? '');
       setTitle(profile.title ?? '');
     }
-  }, [profile?.user_id]);
+  }, [profile]);
 
   const initials = [name, surname]
     .filter(Boolean)

@@ -8,7 +8,7 @@ export type AvatarUploadResult = { publicUrl: string };
 export function useAvatarUpload() {
   const [isUploading, setIsUploading] = useState(false);
 
-  async function upload(_localUri: string): Promise<AvatarUploadResult> {
+  async function upload(_: string): Promise<AvatarUploadResult> {
     setIsUploading(true);
     try {
       throw new Error('Avatar upload not yet implemented (I-F-N01-01-04)');

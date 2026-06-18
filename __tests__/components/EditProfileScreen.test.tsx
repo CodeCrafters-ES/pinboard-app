@@ -47,6 +47,7 @@ jest.mock('expo-image', () => ({
 }));
 
 jest.mock('react-native-safe-area-context', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View } = require('react-native');
   return { SafeAreaView: ({ children }: { children: React.ReactNode }) => <View>{children}</View> };
 });
