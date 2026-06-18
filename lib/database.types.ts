@@ -1,10 +1,12 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
   | null
   | { [key: string]: Json | undefined }
   | Json[]
+
+export type UserRole = 'staff' | 'manager' | 'admin';
 
 export type Database = {
   graphql_public: {
@@ -36,37 +38,68 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
-          avatar_url: string | null
-          created_at: string
-          full_name: string | null
           id: string
+          user_id: string
+          email: string
+          name: string | null
+          surname: string | null
+          title: string | null
+          avatar_url: string | null
           role: Database["public"]["Enums"]["user_role"]
+          created_at: string
           updated_at: string
         }
         Insert: {
+          id?: string
+          user_id: string
+          email: string
+          name?: string | null
+          surname?: string | null
+          title?: string | null
           avatar_url?: string | null
-          created_at?: string
-          full_name?: string | null
-          id: string
           role?: Database["public"]["Enums"]["user_role"]
+          created_at?: string
           updated_at?: string
         }
         Update: {
-          avatar_url?: string | null
-          created_at?: string
-          full_name?: string | null
           id?: string
+          user_id?: string
+          email?: string
+          name?: string | null
+          surname?: string | null
+          title?: string | null
+          avatar_url?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          created_at?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'profiles_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: true
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: {
+        Args: Record<never, never>
+        Returns: boolean
+      }
+      is_manager: {
+        Args: Record<never, never>
+        Returns: boolean
+      }
+      is_staff: {
+        Args: Record<never, never>
+        Returns: boolean
+      }
     }
     Enums: {
       user_role: "admin" | "manager" | "staff"
@@ -204,4 +237,3 @@ export const Constants = {
     },
   },
 } as const
-

@@ -3,8 +3,10 @@ import { Redirect, Slot, useSegments } from 'expo-router';
 import { useSession } from '@/hooks/useSession';
 
 export default function AppLayout() {
-  const session = useSession();
+  const { session, loading } = useSession();
   const segments = useSegments() as string[];
+
+  if (loading) return null;
 
   if (session === null) {
     return <Redirect href="/(auth)/login" />;
