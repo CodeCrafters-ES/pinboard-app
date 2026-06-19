@@ -62,11 +62,12 @@ INSERT INTO auth.users (
   );
 
 -- Insert corresponding profiles (ON CONFLICT ensures idempotency).
-INSERT INTO public.profiles (id, role, full_name) VALUES
-  ('aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'admin',   'Dev Admin'),
-  ('aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'manager', 'Dev Manager'),
-  ('aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'staff',   'Dev Staff')
-ON CONFLICT (id) DO UPDATE
+INSERT INTO public.profiles (user_id, email, role, name, surname) VALUES
+  ('aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'admin@nun-ibiza.dev',   'admin',   'Dev',  'Admin'),
+  ('aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'manager@nun-ibiza.dev', 'manager', 'Dev',  'Manager'),
+  ('aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'staff@nun-ibiza.dev',   'staff',   'Dev',  'Staff')
+ON CONFLICT (user_id) DO UPDATE
   SET role       = EXCLUDED.role,
-      full_name  = EXCLUDED.full_name,
+      name       = EXCLUDED.name,
+      surname    = EXCLUDED.surname,
       updated_at = now();

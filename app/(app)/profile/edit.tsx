@@ -64,6 +64,7 @@ export default function EditProfileScreen() {
       setSurname(profile.surname ?? '');
       setTitle(profile.title ?? '');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.user_id]);
 
   const initials = [name, surname]

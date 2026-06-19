@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 COMMENT ON TABLE  public.profiles             IS 'One row per authenticated user; extends auth.users with app-level data.';
 COMMENT ON COLUMN public.profiles.id          IS 'References auth.users(id). Deleted when the auth user is deleted.';
 COMMENT ON COLUMN public.profiles.role        IS 'Application role. Only admins may modify this column (enforced by RLS in a later migration).';
-COMMENT ON COLUMN public.profiles.full_name   IS 'Display name shown across the app.';
+COMMENT ON COLUMN public.profiles.name        IS 'Given name of the employee.';
+COMMENT ON COLUMN public.profiles.surname     IS 'Family name of the employee.';
 COMMENT ON COLUMN public.profiles.avatar_url  IS 'URL to profile picture in Supabase Storage.';
 
 -- 3. Index on role to support fast role-filtered queries and future RLS helper functions.

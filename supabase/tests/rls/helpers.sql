@@ -2,7 +2,7 @@
 -- Depends on seed.sql (aaaaaaaa-* users with admin / manager / staff roles)
 BEGIN;
 
-SELECT plan(19);
+SELECT plan(20);
 
 -- ── Function existence ────────────────────────────────────────────────────────
 

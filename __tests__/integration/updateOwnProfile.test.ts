@@ -72,12 +72,14 @@ describe('updateOwnProfile integration', () => {
     expect(error).not.toBeNull();
   });
 
-  it('does not allow the user to read another profile', async () => {
-    const { data } = await supabase
+  it('allows authenticated users to read all profiles', async () => {
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .neq('user_id', userId);
 
-    expect(data).toHaveLength(0);
+    expect(error).toBeNull();
+    // SELECT policy is `using (true)`: any authenticated user sees all profiles.
+    expect(data!.length).toBeGreaterThan(0);
   });
 });

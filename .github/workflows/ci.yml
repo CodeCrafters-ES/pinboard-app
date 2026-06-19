@@ -51,7 +51,7 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test -- --ci --passWithNoTests
+      - run: pnpm test -- --ci --passWithNoTests --testPathIgnorePatterns="/node_modules/" "/\.expo/" "/__tests__/integration/"
 
   rls-tests:
     name: RLS Tests (Supabase)
@@ -71,5 +71,26 @@ jobs:
           version: latest
       - run: supabase start
       - run: pnpm supabase:test:rls
+      - if: always()
+        run: supabase stop
+
+  integration-test:
+    name: Integration Tests (Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint, typecheck, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start
+      - run: pnpm test -- --ci --testPathPattern="__tests__/integration/"
       - if: always()
         run: supabase stop
