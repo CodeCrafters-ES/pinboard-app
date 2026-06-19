@@ -25,13 +25,15 @@ $$;
 -- Negative: staff cannot delete any profile (uses existing manager seed profile)
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
 
-select is(
-  (with res as (
-    delete from public.profiles
-    where user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
-    returning 1
-  ) select count(*)::int from res),
-  0,
+select results_eq(
+  $test$
+    with res as (
+      delete from public.profiles
+      where user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
+      returning 1
+    ) select count(*)::int from res
+  $test$,
+  $expected$ values (0) $expected$,
   'staff no puede eliminar ningún perfil (USING policy silently blocks, 0 rows deleted)'
 );
 

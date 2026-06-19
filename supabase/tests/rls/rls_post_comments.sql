@@ -78,13 +78,15 @@ select lives_ok(
 );
 
 -- Negative: staff cannot delete another user's comment
-select is(
-  (with res as (
-    delete from public.post_comments
-    where id = 'eeeeeeee-0000-0000-0000-000000000010'::uuid
-    returning 1
-  ) select count(*)::int from res),
-  0,
+select results_eq(
+  $test$
+    with res as (
+      delete from public.post_comments
+      where id = 'eeeeeeee-0000-0000-0000-000000000010'::uuid
+      returning 1
+    ) select count(*)::int from res
+  $test$,
+  $expected$ values (0) $expected$,
   'staff no puede borrar el comentario de otro usuario'
 );
 
@@ -111,13 +113,15 @@ values ('eeeeeeee-0000-0000-0000-000000000011'::uuid,
 -- Negative: staff cannot update another user's comment
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
 
-select is(
-  (with res as (
-    update public.post_comments set body = 'Tampered'
-    where id = 'eeeeeeee-0000-0000-0000-000000000011'::uuid
-    returning 1
-  ) select count(*)::int from res),
-  0,
+select results_eq(
+  $test$
+    with res as (
+      update public.post_comments set body = 'Tampered'
+      where id = 'eeeeeeee-0000-0000-0000-000000000011'::uuid
+      returning 1
+    ) select count(*)::int from res
+  $test$,
+  $expected$ values (0) $expected$,
   'staff no puede editar el comentario de otro usuario'
 );
 

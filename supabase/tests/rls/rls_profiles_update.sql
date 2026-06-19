@@ -37,13 +37,15 @@ select lives_ok(
 );
 
 -- Negative: staff cannot update another user's profile
-select is(
-  (with res as (
-    update public.profiles set name = 'Hacked'
-    where user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
-    returning 1
-  ) select count(*)::int from res),
-  0,
+select results_eq(
+  $test$
+    with res as (
+      update public.profiles set name = 'Hacked'
+      where user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
+      returning 1
+    ) select count(*)::int from res
+  $test$,
+  $expected$ values (0) $expected$,
   'staff no puede actualizar el perfil de otro usuario (USING policy silently blocks, 0 rows updated)'
 );
 

@@ -82,13 +82,15 @@ select lives_ok(
 );
 
 -- Negative: staff cannot delete another user's reaction
-select is(
-  (with res as (
-    delete from public.post_reactions
-    where id = 'cccccccc-0000-0000-0000-000000000010'::uuid
-    returning 1
-  ) select count(*)::int from res),
-  0,
+select results_eq(
+  $test$
+    with res as (
+      delete from public.post_reactions
+      where id = 'cccccccc-0000-0000-0000-000000000010'::uuid
+      returning 1
+    ) select count(*)::int from res
+  $test$,
+  $expected$ values (0) $expected$,
   'staff no puede eliminar la reacción de otro usuario'
 );
 
