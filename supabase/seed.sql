@@ -36,7 +36,7 @@ INSERT INTO auth.users (
     crypt('password123', gen_salt('bf')),
     now(), now(), now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
-    '{}'::jsonb,
+    '{"role":"admin"}'::jsonb,
     false,
     'authenticated'
   ),
@@ -46,7 +46,7 @@ INSERT INTO auth.users (
     crypt('password123', gen_salt('bf')),
     now(), now(), now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
-    '{}'::jsonb,
+    '{"role":"manager"}'::jsonb,
     false,
     'authenticated'
   ),
@@ -56,7 +56,7 @@ INSERT INTO auth.users (
     crypt('password123', gen_salt('bf')),
     now(), now(), now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
-    '{}'::jsonb,
+    '{"role":"staff"}'::jsonb,
     false,
     'authenticated'
   );
