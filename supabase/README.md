@@ -111,6 +111,17 @@ Las decisiones de autorización y seguridad están documentadas en:
 
 - [ADR-002 — RBAC + RLS](../docs/adr/0002-rbac.md): matriz de permisos por rol y recurso (DB + Storage), convenciones para nuevos recursos.
 
+## Auditoría de cambios de rol
+
+La tabla `public.role_audit` registra cada cambio en `profiles.role`. Solo `admin` puede consultarla.
+
+```sql
+select target_user_id, changed_by, from_role, to_role, changed_at
+from public.role_audit
+order by changed_at desc
+limit 50;
+```
+
 ## Comandos habituales
 
 ```bash
