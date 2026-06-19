@@ -9,6 +9,8 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
+-- Ensure no rows from seed or prior tests contaminate trigger assertions.
+truncate public.role_audit;
 select plan(7);
 
 create or replace function pg_temp.set_session(uid uuid)

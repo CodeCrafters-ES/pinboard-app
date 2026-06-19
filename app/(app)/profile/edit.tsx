@@ -48,7 +48,7 @@ function InputField({
 
 export default function EditProfileScreen() {
   const { session, profile, refreshProfile } = useSession();
-  const { upload, isUploading } = useAvatarUpload();
+  const { pickAndUpload, isUploading } = useAvatarUpload(session?.userId ?? '');
   const router = useRouter();
 
   const [name, setName] = useState(profile?.name ?? '');
@@ -75,10 +75,12 @@ export default function EditProfileScreen() {
     .toUpperCase() || '?';
 
   async function handleAvatarPress() {
+    if (!session) return;
     try {
-      // Stub: triggers useAvatarUpload from I-F-N01-01-04
-      // ImagePicker integration happens in that issue
-      await upload('placeholder');
+      const result = await pickAndUpload();
+      if (!result) return;
+      await updateOwnProfile(session.userId, { avatar_url: result.publicUrl });
+      await refreshProfile();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Error al subir la foto.';
       Alert.alert('Error', message);
