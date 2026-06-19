@@ -56,5 +56,5 @@ create policy role_audit_select_admin
 -- No INSERT / UPDATE / DELETE policies for clients.
 -- RLS denies by default; REVOKE adds a second layer of defense.
 -- auto_expose_new_tables is disabled in config.toml, so SELECT must be granted explicitly.
-grant select on public.role_audit to authenticated;
+grant select on public.role_audit to authenticated, anon;
 revoke insert, update, delete on public.role_audit from authenticated, anon;
