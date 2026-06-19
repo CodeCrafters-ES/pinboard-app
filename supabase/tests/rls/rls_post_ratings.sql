@@ -13,12 +13,15 @@ begin;
 select plan(5);
 
 create or replace function pg_temp.set_session(uid uuid)
-returns void language sql as $$
-  select set_config(
+returns void language plpgsql as $$
+begin
+  perform set_config(
     'request.jwt.claims',
     json_build_object('sub', uid::text, 'role', 'authenticated')::text,
     true
   );
+  set local role authenticated;
+end;
 $$;
 
 -- Fixtures

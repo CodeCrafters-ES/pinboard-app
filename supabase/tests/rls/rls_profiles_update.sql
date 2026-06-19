@@ -13,31 +13,34 @@ begin;
 select plan(4);
 
 create or replace function pg_temp.set_session(uid uuid)
-returns void language sql as $$
-  select set_config(
+returns void language plpgsql as $$
+begin
+  perform set_config(
     'request.jwt.claims',
     json_build_object('sub', uid::text, 'role', 'authenticated')::text,
     true
   );
+  set local role authenticated;
+end;
 $$;
 
--- Positive: staff can update their own full_name
+-- Positive: staff can update their own name
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
 
 select lives_ok(
   $test$
     update public.profiles
-    set full_name = 'Staff Updated'
+    set name = 'Staff Updated'
     where user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
   $test$,
-  'staff puede actualizar su propio full_name'
+  'staff puede actualizar su propio nombre'
 );
 
 -- Negative: staff cannot update another user's profile
 select throws_ok(
   $test$
     update public.profiles
-    set full_name = 'Hacked'
+    set name = 'Hacked'
     where user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
   $test$,
   '42501',
