@@ -88,6 +88,23 @@ Cada policy nueva necesita su fichero de test antes de llegar a `main`. Pasos:
    ```
 5. Abre el PR con **policy + migración + test juntos**. Ver gate de merge en [`supabase/tests/rls/PLAN.md`](tests/rls/PLAN.md).
 
+## Policies RLS activas
+
+Todas las tablas del dominio tienen `ENABLE ROW LEVEL SECURITY`. Resumen de policies por tabla (ver detalle completo en [ADR-002](../docs/adr/0002-rbac.md)):
+
+| Tabla | SELECT | INSERT | UPDATE | DELETE |
+|---|---|---|---|---|
+| `profiles` | any auth | admin | own / admin (role protegido) | admin |
+| `posts` | any auth | manager / admin | own / admin | own / admin |
+| `post_reactions` | any auth | own | own | own / admin |
+| `post_ratings` | any auth | own | own | — (no policy) |
+| `post_comments` | any auth | own | own | own / admin |
+| `events` | any auth | manager / admin | manager / admin | manager / admin |
+| `engagement_sessions` | own / manager+admin | — | — | — |
+| `push_tokens` | own | own | own | own |
+
+> **`engagement_sessions`**: toda escritura va exclusivamente a través de la Edge Function `track-engagement` con `service_role`, que bypasea RLS.
+
 ## Arquitectura — ADRs
 
 Las decisiones de autorización y seguridad están documentadas en:
