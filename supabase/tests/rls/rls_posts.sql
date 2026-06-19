@@ -81,16 +81,16 @@ select lives_ok(
   'manager puede actualizar su propio post'
 );
 
--- Negative: staff cannot update any post
+-- Negative: staff cannot update any post (USING blocks silently)
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
 
-select throws_ok(
-  $test$
+select is(
+  (with res as (
     update public.posts set title = 'Hacked'
     where id = 'bbbbbbbb-0000-0000-0000-000000000001'::uuid
-  $test$,
-  '42501',
-  null,
+    returning 1
+  ) select count(*)::int from res),
+  0,
   'staff no puede modificar un post'
 );
 
@@ -117,13 +117,13 @@ values (
 
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
 
-select throws_ok(
-  $test$
+select is(
+  (with res as (
     delete from public.posts
     where id = 'bbbbbbbb-0000-0000-0000-000000000002'::uuid
-  $test$,
-  '42501',
-  null,
+    returning 1
+  ) select count(*)::int from res),
+  0,
   'staff no puede borrar un post'
 );
 

@@ -83,13 +83,13 @@ select lives_ok(
 );
 
 -- Negative: staff cannot update another user's rating
-select throws_ok(
-  $test$
+select is(
+  (with res as (
     update public.post_ratings set score = 1
     where id = 'dddddddd-0000-0000-0000-000000000010'::uuid
-  $test$,
-  '42501',
-  null,
+    returning 1
+  ) select count(*)::int from res),
+  0,
   'staff no puede modificar la valoración de otro usuario'
 );
 

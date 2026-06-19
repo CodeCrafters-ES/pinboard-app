@@ -37,15 +37,14 @@ select lives_ok(
 );
 
 -- Negative: staff cannot update another user's profile
-select throws_ok(
-  $test$
-    update public.profiles
-    set name = 'Hacked'
+select is(
+  (with res as (
+    update public.profiles set name = 'Hacked'
     where user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
-  $test$,
-  '42501',
-  null,
-  'staff no puede actualizar el perfil de otro usuario'
+    returning 1
+  ) select count(*)::int from res),
+  0,
+  'staff no puede actualizar el perfil de otro usuario (USING policy silently blocks, 0 rows updated)'
 );
 
 -- Negative: staff cannot self-escalate role (WITH CHECK blocks it)
