@@ -35,6 +35,13 @@ export default {
       'expo-router',
       'expo-secure-store',
       [
+        'expo-image-picker',
+        {
+          photosPermission:
+            'Nun Ibiza necesita acceso a tu galería para cambiar tu foto de perfil.',
+        },
+      ],
+      [
         'expo-notifications',
         {
           icon: './assets/notification-icon.png',

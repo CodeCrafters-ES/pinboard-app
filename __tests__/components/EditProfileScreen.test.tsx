@@ -14,7 +14,7 @@ jest.mock('@/lib/auth', () => ({
 }));
 
 jest.mock('@/hooks/useAvatarUpload', () => ({
-  useAvatarUpload: () => ({ upload: jest.fn(), isUploading: false }),
+  useAvatarUpload: () => ({ pickAndUpload: jest.fn(), isUploading: false }),
 }));
 
 jest.mock('@/hooks/useSession', () => ({
