@@ -6,11 +6,14 @@ import LoginScreen from '@/app/(auth)/login';
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
 const mockSignIn = jest.fn();
-const mockResetPassword = jest.fn();
+const mockPush = jest.fn();
 
 jest.mock('@/lib/auth', () => ({
   signInWithPassword: (...args: unknown[]) => mockSignIn(...args),
-  resetPasswordForEmail: (...args: unknown[]) => mockResetPassword(...args),
+}));
+
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush }),
 }));
 
 jest.mock('expo-notifications', () => ({
@@ -89,23 +92,9 @@ describe('LoginScreen', () => {
     });
   });
 
-  it('sends reset email and shows success message', async () => {
-    mockResetPassword.mockResolvedValueOnce(undefined);
-    await render(<LoginScreen />);
-    fireEvent.changeText(screen.getByPlaceholderText('nombre@nunibiza.com'), 'user@test.com');
-    fireEvent.press(screen.getByText('¿Olvidaste tu contraseña?'));
-    await waitFor(() => {
-      expect(mockResetPassword).toHaveBeenCalledWith('user@test.com');
-      expect(screen.getByText('Hemos enviado un enlace de recuperación a tu correo.')).toBeTruthy();
-    });
-  });
-
-  it('requires email before sending reset link', async () => {
+  it('navigates to forgot-password screen when link is pressed', async () => {
     await render(<LoginScreen />);
     fireEvent.press(screen.getByText('¿Olvidaste tu contraseña?'));
-    await waitFor(() => {
-      expect(screen.getByText('El correo es obligatorio.')).toBeTruthy();
-    });
-    expect(mockResetPassword).not.toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/forgot-password');
   });
 });

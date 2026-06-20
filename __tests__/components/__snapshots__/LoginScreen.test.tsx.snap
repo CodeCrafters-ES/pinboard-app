@@ -127,7 +127,7 @@ exports[`LoginScreen renders correctly (snapshot) 1`] = `
             </Text>
           </View>
           <View
-            className="items-center gap-1"
+            className="items-center"
           >
             <View
               accessibilityRole="link"
@@ -135,7 +135,7 @@ exports[`LoginScreen renders correctly (snapshot) 1`] = `
                 {
                   "busy": undefined,
                   "checked": undefined,
-                  "disabled": false,
+                  "disabled": undefined,
                   "expanded": undefined,
                   "selected": undefined,
                 }
@@ -162,7 +162,7 @@ exports[`LoginScreen renders correctly (snapshot) 1`] = `
               onStartShouldSetResponder={[Function]}
             >
               <Text
-                className="text-xs text-nun-sea "
+                className="text-xs text-nun-sea"
               >
                 ¿Olvidaste tu contraseña?
               </Text>
