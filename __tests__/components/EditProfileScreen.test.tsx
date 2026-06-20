@@ -34,6 +34,7 @@ jest.mock('@/hooks/useSession', () => ({
     },
     status: 'authenticated',
     refreshProfile: mockRefreshProfile,
+    signOut: jest.fn(),
   }),
 }));
 

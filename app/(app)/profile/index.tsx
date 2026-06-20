@@ -1,10 +1,9 @@
-import { View, Text } from 'react-native';
+import { Alert, View, Text } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSession } from '@/hooks/useSession';
-import { signOut } from '@/lib/auth';
 import { Button } from '@/components/ui';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -20,7 +19,7 @@ const ROLE_BADGE: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
-  const { session, profile } = useSession();
+  const { session, profile, signOut } = useSession();
   const router = useRouter();
 
   const displayName = [profile?.name, profile?.surname].filter(Boolean).join(' ') || 'Sin nombre';
@@ -32,7 +31,12 @@ export default function ProfileScreen() {
     .toUpperCase();
 
   async function handleSignOut() {
-    await signOut();
+    try {
+      await signOut();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'No se pudo cerrar la sesión.';
+      Alert.alert('Error', message);
+    }
   }
 
   return (

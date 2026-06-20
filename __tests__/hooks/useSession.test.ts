@@ -8,6 +8,7 @@ const mockUnsubscribe = jest.fn();
 const mockOnAuthStateChange = jest.fn();
 const mockGetSession = jest.fn();
 const mockFrom = jest.fn();
+const mockAuthSignOut = jest.fn();
 
 jest.mock('@/lib/supabase', () => ({
   supabase: {
@@ -17,6 +18,10 @@ jest.mock('@/lib/supabase', () => ({
     },
     from: (...args: unknown[]) => mockFrom(...args),
   },
+}));
+
+jest.mock('@/lib/auth', () => ({
+  signOut: (...args: unknown[]) => mockAuthSignOut(...args),
 }));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -111,5 +116,32 @@ describe('useSession', () => {
     await waitFor(() => expect(mockGetSession).toHaveBeenCalled());
     unmount();
     expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('signOut calls authSignOut and resolves', async () => {
+    setupWithSession();
+    mockAuthSignOut.mockResolvedValueOnce(undefined);
+
+    const { result } = await renderHook(() => useSession());
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+
+    await act(async () => {
+      await result.current.signOut();
+    });
+
+    expect(mockAuthSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('signOut resolves without throwing when network fails (offline resilience)', async () => {
+    setupWithSession();
+    mockAuthSignOut.mockRejectedValueOnce(new Error('Network request failed'));
+
+    const { result } = await renderHook(() => useSession());
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+
+    await act(async () => {
+      // Must NOT throw — swallows network error so user still reaches login
+      await expect(result.current.signOut()).resolves.toBeUndefined();
+    });
   });
 });

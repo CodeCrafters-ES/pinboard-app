@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { signOut as authSignOut } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import type { Database, UserRole } from '@/lib/database.types';
 
@@ -12,6 +13,7 @@ export function useSession(): {
   profile: Profile | null;
   status: SessionStatus;
   refreshProfile: () => Promise<void>;
+  signOut: () => Promise<void>;
 } {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -58,7 +60,18 @@ export function useSession(): {
     setProfile(resolved?.profileData ?? null);
   }, []);
 
-  return { session, profile, status, refreshProfile };
+  // Network failures are swallowed: supabase-js clears SecureStore before the
+  // server call, so onAuthStateChange SIGNED_OUT always fires locally.
+  const signOut = useCallback(async () => {
+    try {
+      await authSignOut();
+    } catch {
+      // Offline or push-token error: local session already wiped, redirect happens
+      // via onAuthStateChange listener above.
+    }
+  }, []);
+
+  return { session, profile, status, refreshProfile, signOut };
 }
 
 async function fetchProfile(userId: string): Promise<{ sessionInfo: Session; profileData: Profile } | null> {
