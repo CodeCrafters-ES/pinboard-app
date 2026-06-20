@@ -25,8 +25,9 @@ export async function signOut() {
 }
 
 export async function resetPasswordForEmail(email: string) {
+  // Route is /(auth)/reset-password → transparent group → actual path: /reset-password
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: 'nun-ibiza://auth/reset-password',
+    redirectTo: 'nun-ibiza://reset-password',
   });
   if (error) throw error;
 }
