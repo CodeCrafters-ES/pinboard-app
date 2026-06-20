@@ -30,14 +30,6 @@ function parseAuthFragment(url: string) {
   };
 }
 
-// ─── Validation ───────────────────────────────────────────────────────────────
-
-function validatePassword(v: string): string | null {
-  if (!v) return 'La contraseña es obligatoria.';
-  if (v.length < 8) return 'Mínimo 8 caracteres.';
-  return null;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 type TokenStatus = 'loading' | 'ready' | 'error';
@@ -49,14 +41,21 @@ export default function SetPasswordScreen() {
   const [tokenStatus, setTokenStatus] = useState<TokenStatus>('loading');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Apply token from URL on mount
+  // Derived: form is valid when both fields meet requirements
+  const isFormValid = password.length >= 8 && password === confirm;
+
+  // Subscribe to SIGNED_IN to confirm the token was applied successfully
   useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') setTokenStatus('ready');
+    });
+
     async function applyToken(url: string) {
       const { accessToken, refreshToken, tokenHash, type } = parseAuthFragment(url);
       try {
@@ -66,16 +65,17 @@ export default function SetPasswordScreen() {
             type: type as 'invite',
           });
           if (error) throw error;
+          // onAuthStateChange SIGNED_IN → tokenStatus: 'ready'
         } else if (accessToken) {
           const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken ?? '',
           });
           if (error) throw error;
+          // onAuthStateChange SIGNED_IN → tokenStatus: 'ready'
         } else {
           throw new Error('no_token');
         }
-        setTokenStatus('ready');
       } catch {
         setTokenStatus('error');
       }
@@ -85,9 +85,11 @@ export default function SetPasswordScreen() {
       if (url) applyToken(url);
       else setTokenStatus('error');
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Navigate to app once session is confirmed after save
+  // Navigate to role screen once session confirmed after password save
   useEffect(() => {
     if (!saved || status !== 'authenticated' || !session) return;
     const target =
@@ -100,12 +102,7 @@ export default function SetPasswordScreen() {
   }, [saved, status, session, router]);
 
   async function handleSubmit() {
-    const pErr = validatePassword(password);
-    const cErr = password !== confirm ? 'Las contraseñas no coinciden.' : null;
-    setPasswordError(pErr);
-    setConfirmError(cErr);
-    if (pErr || cErr) return;
-
+    if (!isFormValid) return;
     setSubmitError(null);
     setIsSubmitting(true);
     try {
@@ -168,16 +165,14 @@ export default function SetPasswordScreen() {
             <PasswordField
               label="Nueva contraseña"
               value={password}
-              onChangeText={(v) => { setPassword(v); setPasswordError(null); }}
-              error={passwordError}
+              onChangeText={setPassword}
               placeholder="Mínimo 8 caracteres"
               textContentType="newPassword"
             />
             <PasswordField
               label="Confirmar contraseña"
               value={confirm}
-              onChangeText={(v) => { setConfirm(v); setConfirmError(null); }}
-              error={confirmError}
+              onChangeText={setConfirm}
               placeholder="Repite la contraseña"
               textContentType="newPassword"
               onSubmitEditing={handleSubmit}
@@ -188,9 +183,9 @@ export default function SetPasswordScreen() {
             ) : null}
 
             <Pressable
-              className={`bg-nun-brown rounded-xl py-4 items-center justify-center active:opacity-80 ${isSubmitting ? 'opacity-40' : ''}`}
+              className={`bg-nun-brown rounded-xl py-4 items-center justify-center active:opacity-80 ${!isFormValid || isSubmitting ? 'opacity-40' : ''}`}
               onPress={handleSubmit}
-              disabled={isSubmitting}
+              disabled={!isFormValid || isSubmitting}
               accessibilityRole="button"
               accessibilityLabel="Guardar contraseña"
             >
@@ -211,7 +206,6 @@ function PasswordField({
   label,
   value,
   onChangeText,
-  error,
   placeholder,
   textContentType,
   onSubmitEditing,
@@ -219,7 +213,6 @@ function PasswordField({
   label: string;
   value: string;
   onChangeText: (v: string) => void;
-  error: string | null;
   placeholder?: string;
   textContentType?: 'password' | 'newPassword';
   onSubmitEditing?: () => void;
@@ -228,7 +221,7 @@ function PasswordField({
     <View className="gap-1.5">
       <Text className="text-[13px] font-medium text-nun-dark">{label}</Text>
       <TextInput
-        className={`bg-nun-sand border rounded-xl px-4 py-3 text-[15px] text-nun-dark ${error ? 'border-nun-error' : 'border-nun-parchment'}`}
+        className="bg-nun-sand border border-nun-parchment rounded-xl px-4 py-3 text-[15px] text-nun-dark"
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -238,7 +231,6 @@ function PasswordField({
         onSubmitEditing={onSubmitEditing}
         returnKeyType={onSubmitEditing ? 'go' : 'next'}
       />
-      {error ? <Text className="text-xs text-nun-error">{error}</Text> : null}
     </View>
   );
 }
