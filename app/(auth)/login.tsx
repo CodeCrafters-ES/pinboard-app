@@ -9,9 +9,10 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { AtSign, Lock } from 'lucide-react-native';
 
-import { signInWithPassword, resetPasswordForEmail } from '@/lib/auth';
+import { signInWithPassword } from '@/lib/auth';
 
 // ─── Validation ────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ const AUTH_ERROR_MESSAGES: Record<AuthError, string> = {
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function LoginScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -55,10 +57,6 @@ export default function LoginScreen() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<AuthError | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Forgot password states
-  type ForgotStatus = 'idle' | 'sending' | 'sent' | 'error';
-  const [forgotStatus, setForgotStatus] = useState<ForgotStatus>('idle');
 
   async function handleLogin() {
     const eErr = validateEmail(email);
@@ -76,21 +74,6 @@ export default function LoginScreen() {
       setAuthError(classifyError(e instanceof Error ? e.message : ''));
     } finally {
       setIsSubmitting(false);
-    }
-  }
-
-  async function handleForgotPassword() {
-    const eErr = validateEmail(email);
-    if (eErr) {
-      setEmailError(eErr);
-      return;
-    }
-    setForgotStatus('sending');
-    try {
-      await resetPasswordForEmail(email.trim());
-      setForgotStatus('sent');
-    } catch {
-      setForgotStatus('error');
     }
   }
 
@@ -128,7 +111,7 @@ export default function LoginScreen() {
                   placeholder="nombre@nunibiza.com"
                   placeholderTextColor="#8C7B6A"
                   value={email}
-                  onChangeText={(v) => { setEmail(v); setEmailError(null); setForgotStatus('idle'); }}
+                  onChangeText={(v) => { setEmail(v); setEmailError(null); }}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
@@ -185,26 +168,13 @@ export default function LoginScreen() {
             </Pressable>
 
             {/* Forgot password */}
-            <View className="items-center gap-1">
-              {forgotStatus === 'sent' ? (
-                <Text className="text-xs text-nun-sage text-center">
-                  Hemos enviado un enlace de recuperación a tu correo.
-                </Text>
-              ) : forgotStatus === 'error' ? (
-                <Text className="text-xs text-nun-error text-center">
-                  No pudimos enviar el correo. Inténtalo de nuevo.
-                </Text>
-              ) : (
-                <Pressable
-                  onPress={handleForgotPassword}
-                  disabled={forgotStatus === 'sending'}
-                  accessibilityRole="link"
-                >
-                  <Text className={`text-xs text-nun-sea ${forgotStatus === 'sending' ? 'opacity-50' : ''}`}>
-                    {forgotStatus === 'sending' ? 'Enviando…' : '¿Olvidaste tu contraseña?'}
-                  </Text>
-                </Pressable>
-              )}
+            <View className="items-center">
+              <Pressable
+                onPress={() => router.push('/(auth)/forgot-password')}
+                accessibilityRole="link"
+              >
+                <Text className="text-xs text-nun-sea">¿Olvidaste tu contraseña?</Text>
+              </Pressable>
             </View>
           </View>
 
