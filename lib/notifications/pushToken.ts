@@ -4,27 +4,32 @@ import Constants from 'expo-constants';
 
 import { supabase } from '@/lib/supabase';
 
-export async function requestPermissionsAndGetToken(): Promise<string | null> {
+export async function registerPushToken(userId: string): Promise<string | null> {
   const { status } = await Notifications.requestPermissionsAsync();
   if (status !== 'granted') return null;
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
   const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-  return token;
-}
+  if (!token) return null;
 
-export async function registerPushToken(userId: string, token: string): Promise<void> {
-  await supabase.from('push_tokens').upsert(
+  const { error } = await supabase.from('push_tokens').upsert(
     {
       user_id: userId,
       token,
-      platform: Platform.OS as 'android' | 'ios',
+      platform: Platform.OS as 'android' | 'ios' | 'web',
       updated_at: new Date().toISOString(),
     },
-    { onConflict: 'user_id' },
+    { onConflict: 'user_id,token' },
   );
+
+  if (error) throw error;
+  return token;
 }
 
-export async function deletePushToken(userId: string): Promise<void> {
-  await supabase.from('push_tokens').delete().eq('user_id', userId);
+export async function unregisterPushToken(userId: string, token: string): Promise<void> {
+  const { error } = await supabase
+    .from('push_tokens')
+    .delete()
+    .match({ user_id: userId, token });
+  if (error) throw error;
 }
