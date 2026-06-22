@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { signOut as authSignOut } from '@/lib/auth';
+import { requestPermissionsAndGetToken, registerPushToken } from '@/lib/notifications/pushToken';
 import { supabase } from '@/lib/supabase';
 import type { Database, UserRole } from '@/lib/database.types';
 
@@ -35,13 +36,20 @@ export function useSession(): {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    } = supabase.auth.onAuthStateChange(async (event, s) => {
       if (s) {
         userIdRef.current = s.user.id;
         const resolved = await fetchProfile(s.user.id);
         setSession(resolved?.sessionInfo ?? null);
         setProfile(resolved?.profileData ?? null);
         setStatus(resolved ? 'authenticated' : 'unauthenticated');
+
+        if (event === 'SIGNED_IN') {
+          // Fire-and-forget: errors must not block session setup
+          requestPermissionsAndGetToken()
+            .then((token) => (token ? registerPushToken(s.user.id, token) : null))
+            .catch(() => null);
+        }
       } else {
         userIdRef.current = null;
         setSession(null);

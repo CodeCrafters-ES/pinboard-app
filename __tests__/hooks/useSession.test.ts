@@ -9,6 +9,8 @@ const mockOnAuthStateChange = jest.fn();
 const mockGetSession = jest.fn();
 const mockFrom = jest.fn();
 const mockAuthSignOut = jest.fn();
+const mockRequestPermissionsAndGetToken = jest.fn();
+const mockRegisterPushToken = jest.fn();
 
 jest.mock('@/lib/supabase', () => ({
   supabase: {
@@ -22,6 +24,12 @@ jest.mock('@/lib/supabase', () => ({
 
 jest.mock('@/lib/auth', () => ({
   signOut: (...args: unknown[]) => mockAuthSignOut(...args),
+}));
+
+jest.mock('@/lib/notifications/pushToken', () => ({
+  requestPermissionsAndGetToken: (...args: unknown[]) =>
+    mockRequestPermissionsAndGetToken(...args),
+  registerPushToken: (...args: unknown[]) => mockRegisterPushToken(...args),
 }));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -64,6 +72,9 @@ function setupWithSession() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // Push token functions are fire-and-forget; default to resolved no-ops
+  mockRequestPermissionsAndGetToken.mockResolvedValue(null);
+  mockRegisterPushToken.mockResolvedValue(undefined);
 });
 
 describe('useSession', () => {
@@ -130,6 +141,48 @@ describe('useSession', () => {
     });
 
     expect(mockAuthSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('registers push token when SIGNED_IN event fires', async () => {
+    setupWithSession();
+    let capturedCallback: ((event: string, session: unknown) => void) | null = null;
+    mockOnAuthStateChange.mockImplementation((cb: (event: string, session: unknown) => void) => {
+      capturedCallback = cb;
+      return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
+    });
+    mockRequestPermissionsAndGetToken.mockResolvedValueOnce('ExponentPushToken[abc]');
+    mockRegisterPushToken.mockResolvedValueOnce(undefined);
+
+    const { result } = await renderHook(() => useSession());
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+
+    await act(async () => {
+      capturedCallback?.('SIGNED_IN', { user: { id: 'user-1' } });
+      // Allow fire-and-forget promise to settle
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockRequestPermissionsAndGetToken).toHaveBeenCalledTimes(1));
+    expect(mockRegisterPushToken).toHaveBeenCalledWith('user-1', 'ExponentPushToken[abc]');
+  });
+
+  it('does not register push token on non-SIGNED_IN events', async () => {
+    setupWithSession();
+    let capturedCallback: ((event: string, session: unknown) => void) | null = null;
+    mockOnAuthStateChange.mockImplementation((cb: (event: string, session: unknown) => void) => {
+      capturedCallback = cb;
+      return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
+    });
+
+    const { result } = await renderHook(() => useSession());
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+
+    await act(async () => {
+      capturedCallback?.('TOKEN_REFRESHED', { user: { id: 'user-1' } });
+      await Promise.resolve();
+    });
+
+    expect(mockRequestPermissionsAndGetToken).not.toHaveBeenCalled();
   });
 
   it('signOut resolves without throwing when network fails (offline resilience)', async () => {
