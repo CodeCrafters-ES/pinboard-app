@@ -1,6 +1,6 @@
 -- RLS tests: post_comments table
 -- Policies: post_comments_select_authenticated, post_comments_insert_self,
---           post_comments_update_self, post_comments_delete_self_or_admin
+--           post_comments_update_own_or_admin, post_comments_delete_self_or_admin
 -- refs: docs/adr/0002-rbac.md
 --
 -- Seed UUIDs (supabase/seed.sql):
@@ -9,7 +9,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(6);
+select plan(7);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -123,6 +123,17 @@ select results_eq(
   $test$,
   $expected$ values (0) $expected$,
   'staff no puede editar el comentario de otro usuario'
+);
+
+-- Positive: admin can update (moderate) any comment
+select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000001'::uuid);
+
+select lives_ok(
+  $test$
+    update public.post_comments set body = 'Moderado por admin'
+    where id = 'eeeeeeee-0000-0000-0000-000000000011'::uuid
+  $test$,
+  'admin puede moderar (editar) cualquier comentario'
 );
 
 select * from finish();
