@@ -10,7 +10,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(4);
+select plan(5);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -71,6 +71,24 @@ select lives_ok(
     where user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
   $test$,
   'admin puede cambiar el rol de otro usuario'
+);
+
+-- Negative: manager cannot change another user's role (USING policy returns 0 rows silently)
+-- The USING clause (user_id = auth.uid() OR is_admin()) filters out the target row for
+-- a manager session, so the UPDATE affects 0 rows rather than throwing an exception.
+select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000002'::uuid);
+
+select results_eq(
+  $test$
+    with res as (
+      update public.profiles
+      set role = 'admin'
+      where user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
+      returning 1
+    ) select count(*)::int from res
+  $test$,
+  $expected$ values (0) $expected$,
+  'manager no puede cambiar el rol de otro usuario'
 );
 
 select * from finish();
