@@ -46,7 +46,7 @@ SELECT is(
   'auth_role() search_path is fixed to public, auth'
 );
 
--- 7. Negative: is_admin() is NOT declared SECURITY DEFINER (ordinary STABLE)
+-- 7. Positive: is_admin() is declared SECURITY DEFINER (migration 0017 upgraded it)
 SELECT is(
   (
     SELECT prosecdef
@@ -55,8 +55,8 @@ SELECT is(
     WHERE pg_namespace.nspname = 'public'
       AND pg_proc.proname      = 'is_admin'
   ),
-  false,
-  'is_admin() is not SECURITY DEFINER (ordinary STABLE function)'
+  true,
+  'is_admin() has SECURITY DEFINER attribute'
 );
 
 -- ── Behavior with seed users ──────────────────────────────────────────────────
