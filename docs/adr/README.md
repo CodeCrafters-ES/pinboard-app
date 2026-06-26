@@ -9,6 +9,7 @@ Decisiones técnicas significativas del proyecto Nun Ibiza PinBoard App, documen
 | [ADR-001](0001-engagement.md) | Modelo de engagement: viewed / engaged / clicked | Aceptado |
 | [ADR-002](0002-rbac.md) | Control de acceso basado en roles (RBAC) + RLS | Aceptado |
 | [ADR-003](0003-push-deep-linking.md) | Push notifications y deep-linking | Aceptado |
+| [ADR-004](0004-chat-realtime.md) | Arquitectura del chat en tiempo real: persistente / efímero | Aceptado |
 
 ## Convenciones
 
