@@ -67,7 +67,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.108.0
       - run: supabase start
       - run: pnpm supabase:test:rls
       - if: always()
@@ -88,7 +88,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.108.0
       - run: supabase start
       - run: pnpm test -- --ci --testPathPattern="__tests__/integration/"
       - if: always()
