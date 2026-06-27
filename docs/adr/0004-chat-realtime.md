@@ -263,7 +263,7 @@ El cliente inserta el mensaje en su estado local con estado `pending` antes de r
 - Si tiene éxito: el mensaje pasa a `sent` (reconciliado por `id`).
 - Si falla: el mensaje pasa a `failed` y se muestra un indicador de reintento.
 
-```
+```text
 pending → sent
        → failed → (reintento manual del usuario)
 ```

@@ -34,7 +34,7 @@ La métrica de éxito principal es `link_clicked`: representa el consumo real de
 
 ### Estados de negocio de la sesión
 
-```
+```text
 [sin sesión]
       │  abrir card
       ▼
@@ -131,6 +131,7 @@ create table public.post_ratings (
 ```
 
 **Validaciones:**
+
 1. JWT válido: `auth.uid()` extraído del token es el `user_id` que se persiste — nunca aceptado del body.
 2. `post_id` existe en `public.posts`.
 3. `event` es uno de los cinco valores permitidos.
