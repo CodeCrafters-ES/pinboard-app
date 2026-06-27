@@ -74,7 +74,7 @@ Si la imagen original tiene ambos lados por debajo del máximo, no se redimensio
 
 El cliente ejecuta el siguiente pipeline antes de cada upload usando `expo-image-manipulator`:
 
-```
+```text
 [Selección]
      │  ImagePicker / CameraRoll
      ▼
@@ -171,7 +171,7 @@ Solo se sube al bucket la imagen en resolución `full` (procesada según el pipe
 
 Cuando el volumen de imágenes justifique centralizar las transformaciones, se activará **Supabase Image Transformations**. Las variantes se solicitarán vía querystring sobre la URL del objeto:
 
-```
+```text
 https://<project>.supabase.co/storage/v1/render/image/public/avatars/{user_id}/{uuid}.webp
   ?width=100&height=100&resize=cover&quality=80
 ```
@@ -212,7 +212,7 @@ select cron.schedule(
 
 La Edge Function `cleanup-orphan-images` (Deno, `service_role`) ejecuta para cada bucket:
 
-```
+```text
 1. Listar todos los objetos del bucket (Storage API)
 2. Extraer las URLs referenciadas en la tabla de referencia
 3. Calcular la diferencia: objetos sin referencia con created_at < now() - interval '24h'

@@ -104,11 +104,15 @@ La documentación completa del proyecto (arquitectura, diseño, decisiones técn
 
 ### Arquitectura — ADRs
 
-Las decisiones técnicas significativas se documentan como ADRs en `docs/adr/`:
+Las decisiones técnicas significativas se documentan como ADRs en [`docs/adr/`](docs/adr/README.md):
 
 | ADR | Título | Estado |
 |---|---|---|
+| [ADR-001](docs/adr/0001-engagement.md) | Modelo de engagement: viewed / engaged / clicked | Aceptado |
 | [ADR-002](docs/adr/0002-rbac.md) | Control de acceso basado en roles (RBAC) + RLS | Aceptado |
+| [ADR-003](docs/adr/0003-push-deep-linking.md) | Push notifications y deep-linking | Aceptado |
+| [ADR-004](docs/adr/0004-chat-realtime.md) | Arquitectura del chat en tiempo real: persistente / efímero | Aceptado |
+| [ADR-005](docs/adr/0005-image-storage.md) | Almacenamiento de imágenes: buckets, paths, límites y pipeline cliente | Aceptado |
 
 ## CI / Pipeline local
 
