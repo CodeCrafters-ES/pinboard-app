@@ -21,7 +21,7 @@
     "supabase:reset": "supabase db reset",
     "supabase:test:rls": "supabase db reset && supabase test db supabase/tests/rls/",
     "db:reset": "supabase db reset",
-    "lint:md": "markdownlint-cli2 'docs/adr/**/*.md'"
+    "lint:md": "markdownlint-cli2 docs/adr/**/*.md"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",
