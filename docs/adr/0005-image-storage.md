@@ -3,7 +3,7 @@
 **Estado:** Aceptado
 **Fecha:** 2026-06-27
 **Autores:** Alex Zapata
-**Issues:** [EPIC-A00 #45](https://github.com/CodeCrafters-ES/pinboard-app/issues/45) · [I-F-A00-05-01 #58](https://github.com/CodeCrafters-ES/pinboard-app/issues/58)
+**Issues:** [EPIC-A00 #45](https://github.com/CodeCrafters-ES/pinboard-app/issues/45) · [I-F-A00-05-01 #58](https://github.com/CodeCrafters-ES/pinboard-app/issues/58) · [I-F-A00-05-02 #59](https://github.com/CodeCrafters-ES/pinboard-app/issues/59)
 
 ---
 
@@ -35,17 +35,13 @@ Los buckets privados requieren que el cliente incluya el JWT de Supabase en la s
 
 ### Path convention
 
-| Bucket | Path | Ejemplo |
-|---|---|---|
-| `avatars` | `{user_id}/{uuid}.webp` | `a1b2c3.../f0e1d2....webp` |
-| `post-images` | `{post_id}/{uuid}.webp` | `p9q8r7.../c3b2a1....webp` |
-| `event-images` | `{event_id}/{uuid}.webp` | `e5f6g7.../d4e5f6....webp` |
+| Bucket | Path |
+|---|---|
+| `avatars` | `{user_id}/{uuid}.webp` |
+| `post-images` | `{user_id}/{uuid}.webp` |
+| `event-images` | `{user_id}/{uuid}.webp` |
 
-El primer segmento del path (`storage.foldername(name)[1]`) identifica al propietario del objeto y es la base de las RLS policies de Storage:
-
-- `avatars`: el propietario es el usuario (`user_id = auth.uid()`).
-- `post-images`: el propietario es el post; la policy verifica que `auth.uid()` sea el autor del post.
-- `event-images`: el propietario es el evento; la policy verifica que `auth.uid()` sea el autor del evento.
+El primer segmento del path es siempre el `user_id` del propietario. Esto permite a las RLS policies de Storage validar la propiedad con `auth.uid()::text = (storage.foldername(name))[1]` sin necesidad de JOIN, según el contrato establecido en [ADR-002](0002-rbac.md).
 
 El UUID del objeto (segundo segmento) se genera en cliente con `crypto.randomUUID()` antes del upload, lo que permite construir la URL final antes de que el upload complete (optimista).
 
@@ -128,98 +124,103 @@ async function processImage(
 
 ### RLS policies de Storage
 
-Las policies de Storage operan sobre `storage.objects`. El helper `storage.foldername(name)[1]` extrae el primer segmento del path.
+Las policies de Storage para los tres buckets están definidas en [ADR-002 — sección «Matriz de permisos — Storage»](0002-rbac.md). ADR-002 es la fuente de verdad para todas las policies de `storage.objects`; este ADR no las redefine para evitar duplicación.
 
-#### Bucket `avatars` (público para lectura)
+Resumen de la matriz (ver ADR-002 para las expresiones SQL canónicas):
 
-```sql
--- SELECT: público — no requiere policy de lectura en bucket público
--- INSERT / UPDATE: solo el propio usuario puede subir o reemplazar su avatar
-create policy "avatars_insert" on storage.objects
-  for insert to authenticated
-  with check (
-    bucket_id = 'avatars'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
+| Bucket | Operación | Admin | Manager | Staff |
+|---|---|---|---|---|
+| `avatars` | SELECT | ✓ | ✓ | ✓ |
+| `avatars` | INSERT / UPDATE | ✓ (any) | ✓ (own) | ✓ (own) |
+| `avatars` | DELETE | — | — | — (reemplazar vía UPDATE) |
+| `post-images` | SELECT | ✓ | ✓ | ✓ |
+| `post-images` | INSERT / UPDATE / DELETE | ✓ (any) | ✓ (own) | — |
+| `event-images` | SELECT | ✓ | ✓ | ✓ |
+| `event-images` | INSERT / UPDATE / DELETE | ✓ (any) | ✓ (own) | — |
 
-create policy "avatars_update" on storage.objects
-  for update to authenticated
-  using (
-    bucket_id = 'avatars'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
+La propiedad se valida mediante `auth.uid()::text = (storage.foldername(name))[1]`, posible gracias a la path convention `{user_id}/...` definida en este ADR.
 
-create policy "avatars_delete" on storage.objects
-  for delete to authenticated
-  using (
-    bucket_id = 'avatars'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
+---
+
+### Variantes de thumbnail estándar
+
+Se definen tres variantes estándar aplicables a los tres tipos de imagen:
+
+| Variante | Dimensiones | Uso típico |
+|---|---|---|
+| `thumb` | 100 × 100 px | Listas compactas, chips de usuario |
+| `medium` | 400 × 400 px | Cards de post / evento, avatar en pantalla de perfil |
+| `full` | 1 200 px (lado largo) | Vista de detalle a pantalla completa |
+
+#### Mecanismo en MVP — generación en cliente
+
+En el MVP el cliente genera las variantes necesarias en el momento del uso, aplicando el mismo pipeline de `expo-image-manipulator` con la dimensión objetivo:
+
+```ts
+// Ejemplo: generar variante thumb antes de mostrar en lista
+const thumb = await ImageManipulator.manipulateAsync(
+  localUri,
+  [{ resize: { width: 100 } }],
+  { compress: 0.8, format: ImageManipulator.SaveFormat.WEBP },
+);
 ```
 
-#### Bucket `post-images` (privado)
+Solo se sube al bucket la imagen en resolución `full` (procesada según el pipeline cliente de este ADR). Las variantes `thumb` y `medium` se generan localmente al renderizar y se almacenan en la caché de `expo-image`.
 
-```sql
--- SELECT: usuarios autenticados pueden leer imágenes de posts existentes
-create policy "post_images_select" on storage.objects
-  for select to authenticated
-  using (bucket_id = 'post-images');
+#### Post-MVP — Supabase Image Transformations
 
--- INSERT / UPDATE / DELETE: solo el autor del post
-create policy "post_images_insert" on storage.objects
-  for insert to authenticated
-  with check (
-    bucket_id = 'post-images'
-    and exists (
-      select 1 from public.posts
-      where id::text = (storage.foldername(name))[1]
-        and author_id = auth.uid()
-    )
-  );
+Cuando el volumen de imágenes justifique centralizar las transformaciones, se activará **Supabase Image Transformations**. Las variantes se solicitarán vía querystring sobre la URL del objeto:
 
-create policy "post_images_delete" on storage.objects
-  for delete to authenticated
-  using (
-    bucket_id = 'post-images'
-    and exists (
-      select 1 from public.posts
-      where id::text = (storage.foldername(name))[1]
-        and author_id = auth.uid()
-    )
-  );
+```
+https://<project>.supabase.co/storage/v1/render/image/public/avatars/{user_id}/{uuid}.webp
+  ?width=100&height=100&resize=cover&quality=80
 ```
 
-#### Bucket `event-images` (privado)
+Este cambio no requiere modificar el pipeline de upload ni las políticas de Storage; solo cambia cómo el cliente construye las URLs de visualización.
+
+---
+
+### Limpieza automática de imágenes huérfanas
+
+#### Criterio de huérfano
+
+Un objeto de Storage se considera **huérfano** cuando han transcurrido más de **24 horas** desde su creación y no existe ninguna fila en la tabla de referencia que apunte a él:
+
+| Bucket | Tabla de referencia | Columna |
+|---|---|---|
+| `avatars` | `public.profiles` | `avatar_url` |
+| `post-images` | `public.posts` | `image_url` |
+| `event-images` | `public.events` | `image_url` |
+
+La ventana de 24 h permite completar uploads lentos o en segundo plano sin borrar objetos legítimos aún no referenciados.
+
+#### Mecanismo de ejecución
+
+Un job de `pg_cron` dispara diariamente una Edge Function que realiza la limpieza:
 
 ```sql
--- SELECT: usuarios autenticados pueden leer imágenes de eventos existentes
-create policy "event_images_select" on storage.objects
-  for select to authenticated
-  using (bucket_id = 'event-images');
-
--- INSERT / DELETE: solo el autor del evento
-create policy "event_images_insert" on storage.objects
-  for insert to authenticated
-  with check (
-    bucket_id = 'event-images'
-    and exists (
-      select 1 from public.events
-      where id::text = (storage.foldername(name))[1]
-        and author_id = auth.uid()
-    )
-  );
-
-create policy "event_images_delete" on storage.objects
-  for delete to authenticated
-  using (
-    bucket_id = 'event-images'
-    and exists (
-      select 1 from public.events
-      where id::text = (storage.foldername(name))[1]
-        and author_id = auth.uid()
-    )
-  );
+-- Ejecutar cada día a las 03:00 UTC
+select cron.schedule(
+  'cleanup-orphan-images',
+  '0 3 * * *',
+  $$ select net.http_post(
+    url    := current_setting('app.edge_function_url') || '/cleanup-orphan-images',
+    headers := '{"Authorization": "Bearer ' || current_setting('app.service_role_key') || '"}'::jsonb
+  ) $$
+);
 ```
+
+La Edge Function `cleanup-orphan-images` (Deno, `service_role`) ejecuta para cada bucket:
+
+```
+1. Listar todos los objetos del bucket (Storage API)
+2. Extraer las URLs referenciadas en la tabla de referencia
+3. Calcular la diferencia: objetos sin referencia con created_at < now() - interval '24h'
+4. Eliminar los objetos huérfanos vía Storage Admin API
+5. Registrar el resultado (número de objetos eliminados) en logs de la función
+```
+
+La Edge Function usa `SUPABASE_SERVICE_ROLE_KEY` para acceder a Storage sin restricciones de RLS.
 
 ---
 
@@ -262,6 +263,6 @@ El cliente sube la imagen original y una Edge Function la transforma.
 
 ## Referencias
 
-- [ADR-002](0002-rbac.md) — helpers `is_admin()` / `is_manager()` (usados en extensiones futuras de policies de Storage)
+- [ADR-002](0002-rbac.md) — fuente de verdad para las RLS policies de Storage (matriz de permisos, SQL canónico, helpers `is_admin()` / `is_manager()`)
 - Consumidores: EPIC-N01 (avatares · `profiles.avatar_url`) · EPIC-N02 (post-images · `posts.image_url`) · EPIC-N05 (event-images · `events.image_url`)
-- Continúa en: [I-F-A00-05-02 #59](https://github.com/CodeCrafters-ES/pinboard-app/issues/59) — variantes de thumbnail estándar y políticas de limpieza automática
+- Edge Function de limpieza: `cleanup-orphan-images` (implementación en EPIC-S00)
