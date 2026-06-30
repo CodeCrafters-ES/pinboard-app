@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { signOut as authSignOut } from '@/lib/auth';
-import { requestPermissionsAndGetToken, registerPushToken } from '@/lib/notifications/pushToken';
+import { registerPushToken } from '@/lib/notifications/pushToken';
 import { supabase } from '@/lib/supabase';
 import type { Database, UserRole } from '@/lib/database.types';
 
@@ -46,9 +46,7 @@ export function useSession(): {
 
         if (event === 'SIGNED_IN') {
           // Fire-and-forget: errors must not block session setup
-          requestPermissionsAndGetToken()
-            .then((token) => (token ? registerPushToken(s.user.id, token) : null))
-            .catch(() => null);
+          registerPushToken(s.user.id).catch(() => null);
         }
       } else {
         userIdRef.current = null;

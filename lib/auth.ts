@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
 import type { Database } from './database.types';
-import { deletePushToken } from './notifications/pushToken';
 
 export async function signInWithPassword(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -9,15 +8,17 @@ export async function signInWithPassword(email: string, password: string) {
 }
 
 export async function signOut() {
-  // Remove push token before invalidating session so the delete runs with an active session.
-  // push_tokens table may not exist yet — errors are silently swallowed.
+  // Remove all push tokens for this user before invalidating session so the
+  // DELETE runs while the session is still active. Errors are non-fatal.
   try {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (session) await deletePushToken(session.user.id);
+    if (session) {
+      await supabase.from('push_tokens').delete().eq('user_id', session.user.id);
+    }
   } catch {
-    // Non-fatal
+    // Non-fatal: push_tokens table may not exist yet or no active session
   }
 
   const { error } = await supabase.auth.signOut();

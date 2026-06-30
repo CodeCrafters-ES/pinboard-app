@@ -1,7 +1,6 @@
 import {
-  requestPermissionsAndGetToken,
   registerPushToken,
-  deletePushToken,
+  unregisterPushToken,
 } from '@/lib/notifications/pushToken';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
@@ -15,13 +14,6 @@ jest.mock('expo-notifications', () => ({
   getExpoPushTokenAsync: (...args: unknown[]) => mockGetExpoPushTokenAsync(...args),
 }));
 
-jest.mock('expo-constants', () => ({
-  __esModule: true,
-  default: {
-    expoConfig: { extra: { eas: { projectId: 'test-project-id' } } },
-  },
-}));
-
 jest.mock('@/lib/supabase', () => ({
   supabase: {
     from: (...args: unknown[]) => mockFrom(...args),
@@ -32,75 +24,78 @@ jest.mock('@/lib/supabase', () => ({
 
 beforeEach(() => jest.clearAllMocks());
 
-describe('requestPermissionsAndGetToken', () => {
-  it('returns null when permission is denied', async () => {
+describe('registerPushToken', () => {
+  it('returns null and skips Supabase when permission is denied', async () => {
     mockRequestPermissionsAsync.mockResolvedValueOnce({ status: 'denied' });
 
-    const result = await requestPermissionsAndGetToken();
+    const result = await registerPushToken('user-1');
 
     expect(result).toBeNull();
     expect(mockGetExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
   it('returns null when permission is undetermined', async () => {
     mockRequestPermissionsAsync.mockResolvedValueOnce({ status: 'undetermined' });
 
-    const result = await requestPermissionsAndGetToken();
+    const result = await registerPushToken('user-1');
 
     expect(result).toBeNull();
   });
 
-  it('returns token when permission is granted', async () => {
+  it('upserts row and returns token when permission is granted', async () => {
     mockRequestPermissionsAsync.mockResolvedValueOnce({ status: 'granted' });
-    mockGetExpoPushTokenAsync.mockResolvedValueOnce({ data: 'ExponentPushToken[test123]' });
-
-    const result = await requestPermissionsAndGetToken();
-
-    expect(result).toBe('ExponentPushToken[test123]');
-    expect(mockGetExpoPushTokenAsync).toHaveBeenCalledWith({ projectId: 'test-project-id' });
-  });
-});
-
-describe('registerPushToken', () => {
-  it('upserts row in push_tokens with correct fields', async () => {
+    mockGetExpoPushTokenAsync.mockResolvedValueOnce({ data: 'ExponentPushToken[abc]' });
     const mockUpsert = jest.fn().mockResolvedValueOnce({ error: null });
     mockFrom.mockReturnValueOnce({ upsert: mockUpsert });
 
-    await registerPushToken('user-1', 'ExponentPushToken[test123]');
+    const result = await registerPushToken('user-1');
 
+    expect(result).toBe('ExponentPushToken[abc]');
     expect(mockFrom).toHaveBeenCalledWith('push_tokens');
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: 'user-1',
-        token: 'ExponentPushToken[test123]',
-        platform: expect.stringMatching(/^(android|ios)$/),
+        token: 'ExponentPushToken[abc]',
+        platform: expect.stringMatching(/^(ios|android|web)$/),
       }),
-      { onConflict: 'user_id' },
+      { onConflict: 'user_id,token' },
     );
   });
 
-  it('includes updated_at timestamp in upsert payload', async () => {
-    const mockUpsert = jest.fn().mockResolvedValueOnce({ error: null });
+  it('throws when upsert returns a Supabase error', async () => {
+    mockRequestPermissionsAsync.mockResolvedValueOnce({ status: 'granted' });
+    mockGetExpoPushTokenAsync.mockResolvedValueOnce({ data: 'ExponentPushToken[abc]' });
+    const mockUpsert = jest.fn().mockResolvedValueOnce({ error: new Error('DB error') });
     mockFrom.mockReturnValueOnce({ upsert: mockUpsert });
 
-    await registerPushToken('user-1', 'ExponentPushToken[test123]');
-
-    const payload = mockUpsert.mock.calls[0][0] as Record<string, unknown>;
-    expect(typeof payload.updated_at).toBe('string');
-    expect(new Date(payload.updated_at as string).getTime()).not.toBeNaN();
+    await expect(registerPushToken('user-1')).rejects.toThrow('DB error');
   });
 });
 
-describe('deletePushToken', () => {
-  it('deletes push_tokens row for the given userId', async () => {
-    const mockEq = jest.fn().mockResolvedValueOnce({ error: null });
-    const mockDelete = jest.fn().mockReturnValueOnce({ eq: mockEq });
+describe('unregisterPushToken', () => {
+  it('deletes push_token row matching both userId and token', async () => {
+    const mockMatch = jest.fn().mockResolvedValueOnce({ error: null });
+    const mockDelete = jest.fn().mockReturnValueOnce({ match: mockMatch });
     mockFrom.mockReturnValueOnce({ delete: mockDelete });
 
-    await deletePushToken('user-1');
+    await unregisterPushToken('user-1', 'ExponentPushToken[abc]');
 
     expect(mockFrom).toHaveBeenCalledWith('push_tokens');
     expect(mockDelete).toHaveBeenCalled();
-    expect(mockEq).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(mockMatch).toHaveBeenCalledWith({
+      user_id: 'user-1',
+      token: 'ExponentPushToken[abc]',
+    });
+  });
+
+  it('throws when delete returns a Supabase error', async () => {
+    const mockMatch = jest.fn().mockResolvedValueOnce({ error: new Error('DB error') });
+    const mockDelete = jest.fn().mockReturnValueOnce({ match: mockMatch });
+    mockFrom.mockReturnValueOnce({ delete: mockDelete });
+
+    await expect(
+      unregisterPushToken('user-1', 'ExponentPushToken[abc]'),
+    ).rejects.toThrow('DB error');
   });
 });
