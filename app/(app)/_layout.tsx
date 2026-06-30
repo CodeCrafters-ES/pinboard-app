@@ -22,12 +22,14 @@ export default function AppLayout() {
   }
 
   const group = segments[1];
+  const adminRoute = segments[2] as string | undefined;
 
   if (session.role === 'staff' && (group === '(manager)' || group === '(admin)')) {
     return <Redirect href="/(app)/(staff)/" />;
   }
 
-  if (session.role === 'manager' && group === '(admin)') {
+  // Manager can access (admin)/users (user list) but not other admin-only routes
+  if (session.role === 'manager' && group === '(admin)' && adminRoute !== 'users') {
     return <Redirect href="/(app)/(manager)/" />;
   }
 
