@@ -32,9 +32,13 @@ end;
 $$;
 
 -- Fixtures
-insert into public.posts (id, author_id, title, body)
-values ('eeeeeeee-0000-0000-0000-000000000001'::uuid,
-        'aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'Post for comments', 'Body');
+insert into public.posts (id, author_id, title, external_url)
+select
+  'eeeeeeee-0000-0000-0000-000000000001'::uuid,
+  p.id,
+  'Post for comments',
+  'https://example.com/test'
+from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid;
 
 insert into public.post_comments (id, post_id, author_id, body)
 values ('eeeeeeee-0000-0000-0000-000000000010'::uuid,
