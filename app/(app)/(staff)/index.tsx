@@ -31,7 +31,7 @@ function FeedSkeleton() {
 
 export default function FeedScreen() {
   const router = useRouter();
-  const { posts, loading, error, hasMore, loadMore, refresh } = useFeed();
+  const { posts, loading, error, loadMore, refresh } = useFeed();
 
   const isFirstLoad = loading && posts.length === 0;
   const isRefreshing = !isFirstLoad && loading && posts.length > 0;
