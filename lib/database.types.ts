@@ -7,6 +7,7 @@ export type Json =
   | Json[]
 
 export type UserRole = 'staff' | 'manager' | 'admin';
+export type PostStatus = 'draft' | 'published';
 
 export type Database = {
   graphql_public: {
@@ -36,6 +37,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      posts: {
+        Row: {
+          id: string
+          author_id: string
+          title: string
+          subtitle: string | null
+          external_url: string
+          body: string | null
+          cover_image_url: string | null
+          status: PostStatus
+          published_at: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          author_id: string
+          title: string
+          subtitle?: string | null
+          external_url: string
+          body?: string | null
+          cover_image_url?: string | null
+          status?: PostStatus
+          published_at?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          author_id?: string
+          title?: string
+          subtitle?: string | null
+          external_url?: string
+          body?: string | null
+          cover_image_url?: string | null
+          status?: PostStatus
+          published_at?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'posts_author_id_fkey'
+            columns: ['author_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           id: string
@@ -261,6 +315,8 @@ export type CompositeTypes<
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export type Post = Tables<'posts'>
 
 export const Constants = {
   graphql_public: {

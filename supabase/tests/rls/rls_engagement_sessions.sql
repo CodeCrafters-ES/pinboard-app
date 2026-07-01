@@ -32,9 +32,13 @@ end;
 $$;
 
 -- Fixtures (inserted as postgres = service_role equivalent, bypasses RLS)
-insert into public.posts (id, author_id, title, body)
-values ('aaaaaaaa-1111-0000-0000-000000000001'::uuid,
-        'aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'Post for engagement', 'Body');
+insert into public.posts (id, author_id, title, external_url)
+select
+  'aaaaaaaa-1111-0000-0000-000000000001'::uuid,
+  p.id,
+  'Post for engagement',
+  'https://example.com/test'
+from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid;
 
 -- Staff owns this session
 insert into public.engagement_sessions (id, user_id, post_id)

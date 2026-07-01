@@ -24,12 +24,13 @@ end;
 $$;
 
 -- Fixture: a post owned by the manager seed user (inserted as postgres, bypasses RLS)
-insert into public.posts (id, author_id, title, body)
-values (
+insert into public.posts (id, author_id, title, external_url)
+select
   'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
-  'aaaaaaaa-0000-0000-0000-000000000002'::uuid,  -- manager
-  'Test post', 'Test body'
-);
+  p.id,
+  'Test post',
+  'https://example.com/test'
+from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid;
 
 -- ── SELECT ────────────────────────────────────────────────────────────────────
 
@@ -49,8 +50,9 @@ select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000002'::uuid);
 
 select lives_ok(
   $test$
-    insert into public.posts (author_id, title, body)
-    values ('aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'Manager post', 'Body')
+    insert into public.posts (author_id, title, external_url)
+    select p.id, 'Manager post', 'https://example.com/manager'
+    from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
   $test$,
   'manager puede insertar un post como author propio'
 );
@@ -60,8 +62,9 @@ select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
 
 select throws_ok(
   $test$
-    insert into public.posts (author_id, title, body)
-    values ('aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'Staff post', 'Body')
+    insert into public.posts (author_id, title, external_url)
+    select p.id, 'Staff post', 'https://example.com/staff'
+    from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
   $test$,
   '42501',
   null,
@@ -110,12 +113,13 @@ select lives_ok(
 );
 
 -- Negative: staff cannot delete any post (re-insert fixture first)
-insert into public.posts (id, author_id, title, body)
-values (
+insert into public.posts (id, author_id, title, external_url)
+select
   'bbbbbbbb-0000-0000-0000-000000000002'::uuid,
-  'aaaaaaaa-0000-0000-0000-000000000002'::uuid,
-  'Post to keep', 'Body'
-);
+  p.id,
+  'Post to keep',
+  'https://example.com/test'
+from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid;
 
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
 
