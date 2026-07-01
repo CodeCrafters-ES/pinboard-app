@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { usePosts } from '@/hooks/usePosts';
 import { PostComposerForm } from '@/components/PostComposerForm';
 import { Text } from '@/components/ui';
-import type { Post } from '@/lib/types';
+import type { Post, PostStatus } from '@/lib/types';
 import type { PostFormData } from '@/lib/validation/postSchema';
 
 export default function EditPostScreen() {
@@ -41,7 +41,7 @@ export default function EditPostScreen() {
         body: data.body ?? null,
         status: data.status,
       },
-      post?.status,
+      post?.status as PostStatus | undefined,
     );
     setSaving(false);
 
@@ -96,7 +96,7 @@ export default function EditPostScreen() {
           subtitle: post.subtitle ?? undefined,
           external_url: post.external_url,
           body: post.body ?? undefined,
-          status: post.status,
+          status: post.status as PostStatus,
         }}
         onSubmit={handleSubmit}
         onDelete={handleDelete}
