@@ -28,8 +28,12 @@ export default function AppLayout() {
     return <Redirect href="/(app)/(staff)/" />;
   }
 
-  // Manager can access (admin)/users (user list) but not other admin-only routes
-  if (session.role === 'manager' && group === '(admin)' && adminRoute !== 'users') {
+  const MANAGER_ADMIN_ROUTES = ['users', 'posts'];
+  if (
+    session.role === 'manager' &&
+    group === '(admin)' &&
+    !MANAGER_ADMIN_ROUTES.includes(adminRoute ?? '')
+  ) {
     return <Redirect href="/(app)/(manager)/" />;
   }
 
