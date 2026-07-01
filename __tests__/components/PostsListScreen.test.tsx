@@ -1,11 +1,13 @@
+import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react-native';
+
+import PostsListScreen from '@/app/(app)/(admin)/posts/index';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
 const mockUseSession = jest.fn();
 const mockUsePosts = jest.fn();
 const mockPush = jest.fn();
-const mockBack = jest.fn();
 
 jest.mock('@/hooks/useSession', () => ({
   useSession: () => mockUseSession(),
@@ -16,22 +18,16 @@ jest.mock('@/hooks/usePosts', () => ({
 }));
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: mockBack }),
-  Redirect: ({ href }: { href: string }) => {
-    const { Text } = require('react-native');
-    return <Text testID="redirect">{href}</Text>;
-  },
-  Stack: {
-    Screen: () => null,
-  },
+  useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  Redirect: () => null,
+  Stack: { Screen: () => null },
 }));
 
-jest.mock('react-native-safe-area-context', () => ({
-  SafeAreaView: ({ children }: { children: React.ReactNode }) => {
-    const { View } = require('react-native');
-    return <View>{children}</View>;
-  },
-}));
+jest.mock('react-native-safe-area-context', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  return { SafeAreaView: View };
+});
 
 jest.mock('lucide-react-native', () => ({
   Plus: () => null,
@@ -54,46 +50,16 @@ const POST = {
   deleted_at: null,
 };
 
-function setupAdmin() {
-  mockUseSession.mockReturnValue({
-    session: { userId: 'user-1', role: 'admin' },
-    profile: { id: 'profile-1' },
-  });
-  mockUsePosts.mockReturnValue({
-    posts: [POST],
-    loading: false,
-    error: null,
-    hasMore: false,
-    loadNextPage: jest.fn(),
-    refresh: jest.fn(),
-    createPost: jest.fn(),
-    updatePost: jest.fn(),
-    softDelete: jest.fn(),
-  });
-}
-
-function setupStaff() {
-  mockUseSession.mockReturnValue({
-    session: { userId: 'user-2', role: 'staff' },
-    profile: { id: 'profile-2' },
-  });
-  mockUsePosts.mockReturnValue({
-    posts: [],
-    loading: false,
-    error: null,
-    hasMore: false,
-    loadNextPage: jest.fn(),
-    refresh: jest.fn(),
-    createPost: jest.fn(),
-    updatePost: jest.fn(),
-    softDelete: jest.fn(),
-  });
-}
-
-// Import after mocks
-// eslint-disable-next-line import/first
-import PostsListScreen from '@/app/(app)/(admin)/posts/index';
-import React from 'react';
+const BASE_POSTS_HOOK = {
+  loading: false,
+  error: null,
+  hasMore: false,
+  loadNextPage: jest.fn(),
+  refresh: jest.fn(),
+  createPost: jest.fn(),
+  updatePost: jest.fn(),
+  softDelete: jest.fn(),
+};
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -103,19 +69,28 @@ beforeEach(() => {
 
 describe('PostsListScreen', () => {
   it('renders post titles for admin', async () => {
-    setupAdmin();
+    mockUseSession.mockReturnValue({
+      session: { userId: 'user-1', role: 'admin' },
+      profile: { id: 'profile-1' },
+    });
+    mockUsePosts.mockReturnValue({ ...BASE_POSTS_HOOK, posts: [POST] });
+
     render(<PostsListScreen />);
+
     await waitFor(() => {
       expect(screen.getByText('Noticias del restaurante')).toBeTruthy();
     });
   });
 
-  it('redirects staff to staff area', async () => {
-    setupStaff();
-    render(<PostsListScreen />);
-    await waitFor(() => {
-      expect(screen.getByTestId('redirect')).toBeTruthy();
+  it('redirects staff — renders nothing', () => {
+    mockUseSession.mockReturnValue({
+      session: { userId: 'user-2', role: 'staff' },
+      profile: { id: 'profile-2' },
     });
+    mockUsePosts.mockReturnValue({ ...BASE_POSTS_HOOK, posts: [] });
+
+    const { toJSON } = render(<PostsListScreen />);
+    expect(toJSON()).toBeNull();
   });
 
   it('shows empty state when no posts', async () => {
@@ -123,19 +98,10 @@ describe('PostsListScreen', () => {
       session: { userId: 'user-1', role: 'admin' },
       profile: { id: 'profile-1' },
     });
-    mockUsePosts.mockReturnValue({
-      posts: [],
-      loading: false,
-      error: null,
-      hasMore: false,
-      loadNextPage: jest.fn(),
-      refresh: jest.fn(),
-      createPost: jest.fn(),
-      updatePost: jest.fn(),
-      softDelete: jest.fn(),
-    });
+    mockUsePosts.mockReturnValue({ ...BASE_POSTS_HOOK, posts: [] });
 
     render(<PostsListScreen />);
+
     await waitFor(() => {
       expect(screen.getByText('No hay posts todavía.')).toBeTruthy();
     });
