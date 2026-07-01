@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { supabase } from '@/lib/supabase';
-import type { Post, PostStatus } from '@/lib/database.types';
+import type { Post, PostStatus } from '@/lib/types';
 
 export type { Post };
 
