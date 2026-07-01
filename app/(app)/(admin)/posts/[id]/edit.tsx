@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { usePosts } from '@/hooks/usePosts';
 import { PostComposerForm } from '@/components/PostComposerForm';
 import { Text } from '@/components/ui';
-import type { Post } from '@/lib/database.types';
+import type { Post } from '@/lib/types';
 import type { PostFormData } from '@/lib/validation/postSchema';
 
 export default function EditPostScreen() {
