@@ -372,7 +372,19 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      profiles_public: {
+        Row: {
+          id: string
+          user_id: string
+          full_name: string | null
+          name: string | null
+          surname: string | null
+          avatar_url: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          created_at: string
+        }
+        Relationships: []
+      }
     }
     Functions: {
       auth_role: {
