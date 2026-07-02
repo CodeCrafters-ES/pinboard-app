@@ -383,6 +383,7 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
           created_at: string
         }
+        Relationships: []
       }
     }
     Functions: {
