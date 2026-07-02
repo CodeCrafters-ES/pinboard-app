@@ -84,6 +84,28 @@ export function useUserList() {
 
   const changeRole = useCallback(
     async (profileId: string, newRole: UserRole): Promise<{ error: string | null }> => {
+      // Guard: prevent demoting the sole admin
+      if (newRole !== 'admin') {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: myProfile } = await supabase
+            .from('profiles')
+            .select('id, role')
+            .eq('user_id', user.id)
+            .single();
+
+          if (myProfile?.id === profileId && myProfile?.role === 'admin') {
+            const { count } = await supabase
+              .from('profiles')
+              .select('id', { count: 'exact', head: true })
+              .eq('role', 'admin');
+            if ((count ?? 0) <= 1) {
+              return { error: 'No puedes cambiar tu rol si eres el único administrador.' };
+            }
+          }
+        }
+      }
+
       const { error: err } = await supabase
         .from('profiles')
         .update({ role: newRole })

@@ -80,3 +80,16 @@ export async function listProfilesPublic(
 
   return { rows: (data as ProfilePublicRow[]) ?? [], total: count ?? 0 };
 }
+
+export async function updateUserRole(profileId: string, newRole: UserRole): Promise<ProfileRow> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ role: newRole })
+    .eq('id', profileId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  if (!data) throw new Error('No se pudo actualizar el rol: sin respuesta del servidor.');
+  return data;
+}
