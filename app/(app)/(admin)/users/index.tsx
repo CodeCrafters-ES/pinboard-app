@@ -257,6 +257,8 @@ function InviteModal({
             <Pressable
               onPress={handleClose}
               disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar"
               className="flex-1 items-center rounded-xl border border-nun-parchment py-3"
             >
               <Text className="text-[15px] font-medium text-nun-dark">Cancelar</Text>
@@ -264,6 +266,8 @@ function InviteModal({
             <Pressable
               onPress={handleSubmit}
               disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="Invitar"
               className={`flex-1 items-center rounded-xl py-3 ${loading ? 'bg-nun-sand' : 'bg-nun-brown'}`}
             >
               {loading ? (
