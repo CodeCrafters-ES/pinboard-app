@@ -24,9 +24,13 @@ end;
 $$;
 
 -- Fixtures (inserted as postgres, bypass RLS)
-insert into public.posts (id, author_id, title, body)
-values ('cccccccc-0000-0000-0000-000000000001'::uuid,
-        'aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'Post for reactions', 'Body');
+insert into public.posts (id, author_id, title, external_url)
+select
+  'cccccccc-0000-0000-0000-000000000001'::uuid,
+  p.id,
+  'Post for reactions',
+  'https://example.com/test'
+from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid;
 
 insert into public.post_reactions (id, post_id, user_id, reaction)
 values ('cccccccc-0000-0000-0000-000000000010'::uuid,

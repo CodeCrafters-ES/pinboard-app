@@ -72,8 +72,20 @@ export default function AdminPanel() {
       <View className="flex-1 items-center justify-center gap-4 px-6">
         <Text className="text-[22px] font-bold">Admin Panel</Text>
         <Button
-          label="Invitar usuario"
+          label="Gestionar posts"
           variant="primary"
+          onPress={() => router.push('/(app)/(admin)/posts')}
+          className="w-full"
+        />
+        <Button
+          label="Gestionar usuarios"
+          variant="secondary"
+          onPress={() => router.push('/(app)/(admin)/users')}
+          className="w-full"
+        />
+        <Button
+          label="Invitar usuario"
+          variant="secondary"
           onPress={openModal}
           className="w-full"
         />
