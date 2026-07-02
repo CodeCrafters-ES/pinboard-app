@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { AtSign, Lock } from 'lucide-react-native';
 
 import { signInWithPassword } from '@/lib/auth';
+import { useSession } from '@/hooks/useSession';
 
 // ─── Validation ────────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ const AUTH_ERROR_MESSAGES: Record<AuthError, string> = {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { session, status } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -57,6 +59,18 @@ export default function LoginScreen() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<AuthError | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirect once useSession resolves the profile after a successful sign-in
+  useEffect(() => {
+    if (status !== 'authenticated' || !session) return;
+    const target =
+      session.role === 'admin'
+        ? '/(app)/(admin)/'
+        : session.role === 'manager'
+          ? '/(app)/(manager)/'
+          : '/(app)/(staff)/';
+    router.replace(target as never);
+  }, [status, session, router]);
 
   async function handleLogin() {
     const eErr = validateEmail(email);
@@ -69,7 +83,7 @@ export default function LoginScreen() {
     setIsSubmitting(true);
     try {
       await signInWithPassword(email.trim(), password);
-      // Navigation handled automatically by useSession + AppLayout guard
+      // Navigation handled by the effect above once useSession reports 'authenticated'
     } catch (e) {
       setAuthError(classifyError(e instanceof Error ? e.message : ''));
     } finally {
