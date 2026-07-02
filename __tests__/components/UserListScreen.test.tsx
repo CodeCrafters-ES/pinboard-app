@@ -86,6 +86,16 @@ jest.mock('react-native-safe-area-context', () => {
   return { SafeAreaView: View };
 });
 
+// Modal renders in a native portal that RNTL cannot query. Replace with an
+// inline conditional so findByRole works across modal content.
+jest.mock('react-native/Libraries/Modal/Modal', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  return function MockModal({ children, visible }: { children: React.ReactNode; visible: boolean }) {
+    return visible ? <View>{children}</View> : null;
+  };
+});
+
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
@@ -202,7 +212,7 @@ describe('UserListScreen — InviteModal', () => {
   });
 
   it('submit con email válido llama a invite-user con los parámetros correctos', async () => {
-    jest.mocked(supabase.functions.invoke).mockResolvedValueOnce({ error: null });
+    jest.mocked(supabase.functions.invoke).mockResolvedValueOnce({ data: null, error: null });
     render(<UserListScreen />);
 
     fireEvent.press(await screen.findByRole('button', { name: 'Invitar usuario' }));
@@ -221,6 +231,7 @@ describe('UserListScreen — InviteModal', () => {
 
   it('error de la edge function muestra el mensaje en el modal', async () => {
     jest.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: null,
       error: { message: 'User already registered' },
     });
     render(<UserListScreen />);
