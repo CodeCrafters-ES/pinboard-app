@@ -1,8 +1,21 @@
-import { Alert, FlatList, Pressable, TextInput, View, ScrollView, ActivityIndicator } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
+import { useState } from 'react';
 import { Image } from 'expo-image';
 import { Redirect, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { supabase } from '@/lib/supabase';
 import { useSession } from '@/hooks/useSession';
 import { useUserList, type Profile, type RoleFilter, type UserRole } from '@/hooks/useUserList';
 import { Text } from '@/components/ui';
@@ -25,6 +38,8 @@ const ROLE_FILTERS: { label: string; value: RoleFilter }[] = [
   { label: 'Manager', value: 'manager' },
   { label: 'Staff', value: 'staff' },
 ];
+
+const INVITE_ROLES: UserRole[] = ['staff', 'manager', 'admin'];
 
 function toThumbnailUrl(url: string | null): string | null {
   if (!url) return null;
@@ -134,6 +149,140 @@ function RoleFilterBar({
   );
 }
 
+function InviteModal({
+  visible,
+  onClose,
+  onSuccess,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<UserRole>('staff');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function reset() {
+    setEmail('');
+    setRole('staff');
+    setLoading(false);
+    setError(null);
+  }
+
+  function handleClose() {
+    reset();
+    onClose();
+  }
+
+  async function handleSubmit() {
+    if (!email.trim()) {
+      setError('El email es obligatorio.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+
+    const { error: fnError } = await supabase.functions.invoke('invite-user', {
+      body: { email: email.trim(), role },
+    });
+
+    setLoading(false);
+
+    if (fnError) {
+      setError(fnError.message);
+      return;
+    }
+
+    reset();
+    onSuccess();
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={handleClose}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1 justify-center items-center bg-black/50 px-6"
+      >
+        <View className="w-full bg-white rounded-2xl p-6 gap-4">
+          <Text className="text-[17px] font-semibold text-nun-dark">Invitar usuario</Text>
+
+          {/* Email */}
+          <View className="gap-1.5">
+            <Text className="text-xs text-nun-muted font-medium">Email</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="nombre@nunibiza.com"
+              placeholderTextColor="#8C7B6A"
+              className="bg-nun-linen border border-nun-parchment rounded-xl px-4 py-3 text-[15px] text-nun-dark"
+            />
+          </View>
+
+          {/* Role */}
+          <View className="gap-1.5">
+            <Text className="text-xs text-nun-muted font-medium">Rol</Text>
+            <View className="flex-row gap-2">
+              {INVITE_ROLES.map((r) => (
+                <Pressable
+                  key={r}
+                  onPress={() => setRole(r)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: role === r }}
+                  className={`flex-1 items-center rounded-full py-2 ${role === r ? 'bg-nun-brown' : 'bg-nun-sand'}`}
+                >
+                  <Text className={`text-xs font-medium ${role === r ? 'text-white' : 'text-nun-dark'}`}>
+                    {ROLE_LABEL[r]}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {/* Error */}
+          {error ? (
+            <Text className="text-xs text-nun-error">{error}</Text>
+          ) : null}
+
+          {/* Actions */}
+          <View className="flex-row gap-3 pt-1">
+            <Pressable
+              onPress={handleClose}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar"
+              className="flex-1 items-center rounded-xl border border-nun-parchment py-3"
+            >
+              <Text className="text-[15px] font-medium text-nun-dark">Cancelar</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleSubmit}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="Invitar"
+              className={`flex-1 items-center rounded-xl py-3 ${loading ? 'bg-nun-sand' : 'bg-nun-brown'}`}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-[15px] font-semibold text-white">Invitar</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 export default function UserListScreen() {
   const { session } = useSession();
   const {
@@ -149,6 +298,7 @@ export default function UserListScreen() {
     changeRole,
     refresh,
   } = useUserList();
+  const [inviteVisible, setInviteVisible] = useState(false);
 
   if (session && session.role !== 'admin' && session.role !== 'manager') {
     return <Redirect href="/(app)/(staff)/" />;
@@ -180,11 +330,33 @@ export default function UserListScreen() {
     );
   }
 
+  function handleInviteSuccess() {
+    setInviteVisible(false);
+    Alert.alert('Invitación enviada', 'El usuario recibirá un email para activar su cuenta.');
+  }
+
   const isRefreshing = loading && profiles.length === 0;
 
   return (
     <SafeAreaView className="flex-1 bg-nun-linen" edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Usuarios', headerShown: true }} />
+      <Stack.Screen
+        options={{
+          title: 'Usuarios',
+          headerShown: true,
+          headerRight: isAdmin
+            ? () => (
+                <Pressable
+                  onPress={() => setInviteVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Invitar usuario"
+                  className="pr-1"
+                >
+                  <Text className="text-nun-sea font-semibold text-[15px]">+ Invitar</Text>
+                </Pressable>
+              )
+            : undefined,
+        }}
+      />
 
       {/* Search */}
       <View className="px-4 pt-3 pb-1">
@@ -238,6 +410,12 @@ export default function UserListScreen() {
             </View>
           ) : null
         }
+      />
+
+      <InviteModal
+        visible={inviteVisible}
+        onClose={() => setInviteVisible(false)}
+        onSuccess={handleInviteSuccess}
       />
     </SafeAreaView>
   );

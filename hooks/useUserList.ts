@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { supabase } from '@/lib/supabase';
+import { listProfiles, updateUserRole } from '@/lib/supabase/queries/profiles';
 import type { Database } from '@/lib/database.types';
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -32,39 +33,24 @@ export function useUserList() {
       setLoading(true);
       setError(null);
 
-      const from = pageVal * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
+      try {
+        const { rows, total } = await listProfiles({
+          search: searchVal.trim() || undefined,
+          role: roleVal !== 'all' ? roleVal : undefined,
+          page: pageVal,
+          pageSize: PAGE_SIZE,
+        });
 
-      let query = supabase
-        .from('profiles')
-        .select('*')
-        .order('name', { ascending: true })
-        .range(from, to);
+        if (fetchIdRef.current !== fetchId) return;
 
-      if (searchVal.trim()) {
-        query = query.or(
-          `name.ilike.%${searchVal}%,surname.ilike.%${searchVal}%,email.ilike.%${searchVal}%`,
-        );
+        setProfiles(pageVal === 0 ? rows : (prev) => [...prev, ...rows]);
+        setHasMore(pageVal * PAGE_SIZE + rows.length < total);
+      } catch (err) {
+        if (fetchIdRef.current !== fetchId) return;
+        setError(err instanceof Error ? err.message : 'Error cargando usuarios');
+      } finally {
+        if (fetchIdRef.current === fetchId) setLoading(false);
       }
-
-      if (roleVal !== 'all') {
-        query = query.eq('role', roleVal);
-      }
-
-      const { data, error: err } = await query;
-
-      if (fetchIdRef.current !== fetchId) return;
-
-      if (err) {
-        setError(err.message);
-        setLoading(false);
-        return;
-      }
-
-      const rows = data ?? [];
-      setProfiles(pageVal === 0 ? rows : (prev) => [...prev, ...rows]);
-      setHasMore(rows.length === PAGE_SIZE);
-      setLoading(false);
     },
     [],
   );
@@ -106,17 +92,15 @@ export function useUserList() {
         }
       }
 
-      const { error: err } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', profileId);
-
-      if (err) return { error: err.message };
-
-      setProfiles((prev) =>
-        prev.map((p) => (p.id === profileId ? { ...p, role: newRole } : p)),
-      );
-      return { error: null };
+      try {
+        const updated = await updateUserRole(profileId, newRole);
+        setProfiles((prev) =>
+          prev.map((p) => (p.id === profileId ? { ...p, role: updated.role } : p)),
+        );
+        return { error: null };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : 'Error actualizando rol' };
+      }
     },
     [],
   );

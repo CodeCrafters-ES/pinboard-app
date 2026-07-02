@@ -17,7 +17,8 @@ export interface ListProfilesParams {
 
 /**
  * For admin and manager callers only. Returns full profile data including email.
- * Queries `profiles` directly; RLS allows any authenticated user to read all rows.
+ * Queries `profiles` directly; RLS (profiles_select_self_or_privileged) allows
+ * admin and manager to read all rows. Staff are restricted to their own row.
  */
 export async function listProfiles(
   params: ListProfilesParams = {}

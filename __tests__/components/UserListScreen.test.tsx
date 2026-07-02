@@ -1,7 +1,8 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react-native';
 
 import UserListScreen from '@/app/(app)/(admin)/users/index';
+import { supabase } from '@/lib/supabase';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -59,9 +60,19 @@ jest.mock('@/hooks/useUserList', () => ({
   }),
 }));
 
+jest.mock('@/lib/supabase', () => ({
+  supabase: {
+    functions: { invoke: jest.fn() },
+  },
+}));
+
+// Stack.Screen renders headerRight so the invite button is reachable in tests
 jest.mock('expo-router', () => ({
   Redirect: () => null,
-  Stack: { Screen: () => null },
+  Stack: {
+    Screen: ({ options }: { options?: { headerRight?: () => React.ReactNode } }) =>
+      options?.headerRight?.() ?? null,
+  },
   useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
 }));
 
@@ -75,11 +86,24 @@ jest.mock('react-native-safe-area-context', () => {
   return { SafeAreaView: View };
 });
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+// Modal renders in a native portal that RNTL cannot query. Replace with an
+// inline conditional so findByRole works across modal content.
+jest.mock('react-native/Libraries/Modal/Modal', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  return function MockModal({ children, visible }: { children: React.ReactNode; visible: boolean }) {
+    return visible ? <View>{children}</View> : null;
+  };
+});
+
+// ─── Setup ───────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   mockRole = 'admin';
+  jest.mocked(supabase.functions.invoke).mockReset();
 });
+
+// ─── Tests: admin view ────────────────────────────────────────────────────────
 
 describe('UserListScreen — admin', () => {
   it('renders the list with user data', async () => {
@@ -131,6 +155,8 @@ describe('UserListScreen — admin', () => {
   });
 });
 
+// ─── Tests: manager view ─────────────────────────────────────────────────────
+
 describe('UserListScreen — manager', () => {
   beforeEach(() => {
     mockRole = 'manager';
@@ -151,5 +177,88 @@ describe('UserListScreen — manager', () => {
       expect(screen.getByText('Ana García')).toBeTruthy();
       expect(screen.getByText('Carlos López')).toBeTruthy();
     });
+  });
+});
+
+// ─── Tests: InviteModal ───────────────────────────────────────────────────────
+
+describe('UserListScreen — InviteModal', () => {
+  it('admin ve el botón "+ Invitar"', async () => {
+    render(<UserListScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Invitar usuario' })).toBeTruthy();
+    });
+  });
+
+  it('manager no ve el botón "+ Invitar"', async () => {
+    mockRole = 'manager';
+    render(<UserListScreen />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Invitar usuario' })).toBeNull();
+    });
+  });
+
+  it('submit sin email muestra error de validación', async () => {
+    render(<UserListScreen />);
+
+    fireEvent.press(await screen.findByRole('button', { name: 'Invitar usuario' }));
+    fireEvent.press(await screen.findByRole('button', { name: 'Invitar' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('El email es obligatorio.')).toBeTruthy();
+    });
+  });
+
+  it('submit con email válido llama a invite-user con los parámetros correctos', async () => {
+    jest.mocked(supabase.functions.invoke).mockResolvedValueOnce({ data: null, error: null });
+    render(<UserListScreen />);
+
+    fireEvent.press(await screen.findByRole('button', { name: 'Invitar usuario' }));
+    fireEvent.changeText(
+      await screen.findByPlaceholderText('nombre@nunibiza.com'),
+      'nuevo@nunibiza.com',
+    );
+    fireEvent.press(screen.getByRole('button', { name: 'Invitar' }));
+
+    await waitFor(() => {
+      expect(supabase.functions.invoke).toHaveBeenCalledWith('invite-user', {
+        body: { email: 'nuevo@nunibiza.com', role: 'staff' },
+      });
+    });
+  });
+
+  it('error de la edge function muestra el mensaje en el modal', async () => {
+    jest.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+      data: null,
+      error: { message: 'User already registered' },
+    });
+    render(<UserListScreen />);
+
+    fireEvent.press(await screen.findByRole('button', { name: 'Invitar usuario' }));
+    fireEvent.changeText(
+      await screen.findByPlaceholderText('nombre@nunibiza.com'),
+      'existente@nunibiza.com',
+    );
+    fireEvent.press(screen.getByRole('button', { name: 'Invitar' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('User already registered')).toBeTruthy();
+    });
+  });
+
+  it('Cancelar cierra el modal sin llamar a la edge function', async () => {
+    render(<UserListScreen />);
+
+    fireEvent.press(await screen.findByRole('button', { name: 'Invitar usuario' }));
+    await screen.findByPlaceholderText('nombre@nunibiza.com');
+
+    fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('nombre@nunibiza.com')).toBeNull();
+    });
+    expect(supabase.functions.invoke).not.toHaveBeenCalled();
   });
 });
