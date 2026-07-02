@@ -6,8 +6,6 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type UserRole = 'staff' | 'manager' | 'admin';
-
 export type Database = {
   graphql_public: {
     Tables: {
@@ -36,85 +34,339 @@ export type Database = {
   }
   public: {
     Tables: {
-      push_tokens: {
+      engagement_sessions: {
         Row: {
+          device: string | null
           id: string
+          last_seen_at: string
+          link_clicked: boolean
+          post_id: string
+          started_at: string
+          status: string
           user_id: string
-          token: string
-          platform: string
+        }
+        Insert: {
+          device?: string | null
+          id?: string
+          last_seen_at?: string
+          link_clicked?: boolean
+          post_id: string
+          started_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          device?: string | null
+          id?: string
+          last_seen_at?: string
+          link_clicked?: boolean
+          post_id?: string
+          started_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_sessions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          author_id: string
           created_at: string
+          description: string | null
+          event_end_at: string
+          event_start_at: string
+          id: string
+          image_url: string | null
+          location: string | null
+          title: string
           updated_at: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          token: string
-          platform: string
+          author_id: string
           created_at?: string
+          description?: string | null
+          event_end_at: string
+          event_start_at: string
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          title: string
           updated_at?: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          token?: string
-          platform?: string
+          author_id?: string
           created_at?: string
+          description?: string | null
+          event_end_at?: string
+          event_start_at?: string
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      post_comments: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          post_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          post_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          post_id?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: 'push_tokens_user_id_fkey'
-            columns: ['user_id']
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
             isOneToOne: false
-            referencedRelation: 'users'
-            referencedColumns: ['id']
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_ratings: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          score: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          score: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          score?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_ratings_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_reactions: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          reaction: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          reaction: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          reaction?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posts: {
+        Row: {
+          author_id: string
+          body: string | null
+          cover_image_url: string | null
+          created_at: string
+          deleted_at: string | null
+          external_url: string
+          id: string
+          published_at: string | null
+          status: string
+          subtitle: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          external_url: string
+          id?: string
+          published_at?: string | null
+          status?: string
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          external_url?: string
+          id?: string
+          published_at?: string | null
+          status?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
       profiles: {
         Row: {
-          id: string
-          user_id: string
+          avatar_url: string | null
+          created_at: string
           email: string
+          id: string
           name: string | null
+          role: Database["public"]["Enums"]["user_role"]
           surname: string | null
           title: string | null
-          avatar_url: string | null
-          role: Database["public"]["Enums"]["user_role"]
-          created_at: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
+          avatar_url?: string | null
+          created_at?: string
           email: string
+          id?: string
           name?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
           surname?: string | null
           title?: string | null
-          avatar_url?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-          created_at?: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
+          avatar_url?: string | null
+          created_at?: string
           email?: string
+          id?: string
           name?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
           surname?: string | null
           title?: string | null
-          avatar_url?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-          created_at?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      push_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          platform: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      role_audit: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          from_role: Database["public"]["Enums"]["user_role"] | null
+          id: string
+          target_user_id: string | null
+          to_role: Database["public"]["Enums"]["user_role"]
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          from_role?: Database["public"]["Enums"]["user_role"] | null
+          id?: string
+          target_user_id?: string | null
+          to_role: Database["public"]["Enums"]["user_role"]
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          from_role?: Database["public"]["Enums"]["user_role"] | null
+          id?: string
+          target_user_id?: string | null
+          to_role?: Database["public"]["Enums"]["user_role"]
         }
         Relationships: [
           {
-            foreignKeyName: 'profiles_user_id_fkey'
-            columns: ['user_id']
-            isOneToOne: true
-            referencedRelation: 'users'
-            referencedColumns: ['id']
+            foreignKeyName: "role_audit_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -134,21 +386,16 @@ export type Database = {
       }
     }
     Functions: {
-      is_admin: {
-        Args: Record<never, never>
-        Returns: boolean
+      auth_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["user_role"]
       }
-      is_manager: {
-        Args: Record<never, never>
-        Returns: boolean
-      }
-      is_staff: {
-        Args: Record<never, never>
-        Returns: boolean
-      }
+      is_admin: { Args: never; Returns: boolean }
+      is_manager: { Args: never; Returns: boolean }
+      is_staff: { Args: never; Returns: boolean }
     }
     Enums: {
-      user_role: "admin" | "manager" | "staff"
+      user_role: "staff" | "manager" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -279,7 +526,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      user_role: ["admin", "manager", "staff"],
+      user_role: ["staff", "manager", "admin"],
     },
   },
 } as const

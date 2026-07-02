@@ -25,9 +25,13 @@ end;
 $$;
 
 -- Fixtures
-insert into public.posts (id, author_id, title, body)
-values ('dddddddd-0000-0000-0000-000000000001'::uuid,
-        'aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'Post for ratings', 'Body');
+insert into public.posts (id, author_id, title, external_url)
+select
+  'dddddddd-0000-0000-0000-000000000001'::uuid,
+  p.id,
+  'Post for ratings',
+  'https://example.com/test'
+from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid;
 
 insert into public.post_ratings (id, post_id, user_id, score)
 values ('dddddddd-0000-0000-0000-000000000010'::uuid,
