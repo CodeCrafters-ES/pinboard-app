@@ -2,8 +2,10 @@ import { supabase } from '@/lib/supabase';
 import type { Tables } from '@/lib/database.types';
 
 type ProfileSnippet = { name: string | null; surname: string | null };
+type PostAuthor = { id: string; name: string | null; surname: string | null; avatar_url: string | null };
 
 export type PostWithAuthor = Tables<'posts'> & { author: ProfileSnippet };
+export type PostDetail = Tables<'posts'> & { author: PostAuthor };
 export type PostCursor = { published_at: string; id: string };
 
 export async function listPublishedPosts({
@@ -40,4 +42,17 @@ export async function listPublishedPosts({
       : null;
 
   return { rows, nextCursor };
+}
+
+export async function getPostById(id: string): Promise<PostDetail> {
+  const { data, error } = await supabase
+    .from('posts')
+    .select('*, author:profiles!author_id(id, name, surname, avatar_url)')
+    .eq('id', id)
+    .is('deleted_at', null)
+    .single();
+
+  if (error) throw error;
+
+  return data as PostDetail;
 }
