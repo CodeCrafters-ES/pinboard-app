@@ -1,5 +1,7 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 import { supabase } from '@/lib/supabase';
-import type { Tables } from '@/lib/database.types';
+import type { Database, Tables } from '@/lib/database.types';
 
 type ProfileSnippet = { name: string | null; surname: string | null };
 type PostAuthor = { id: string; name: string | null; surname: string | null; avatar_url: string | null };
@@ -11,11 +13,13 @@ export type PostCursor = { published_at: string; id: string };
 export async function listPublishedPosts({
   cursor,
   pageSize = 20,
+  client = supabase,
 }: {
   cursor?: PostCursor;
   pageSize?: number;
+  client?: SupabaseClient<Database>;
 }): Promise<{ rows: PostWithAuthor[]; nextCursor: PostCursor | null }> {
-  let query = supabase
+  let query = client
     .from('posts')
     .select('*, author:profiles!author_id(name, surname)')
     .eq('status', 'published')
