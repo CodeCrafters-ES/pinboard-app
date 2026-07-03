@@ -27,7 +27,7 @@ export default function AppLayout() {
     return <Redirect href="/(app)/(staff)/" />;
   }
 
-  if (session.role === 'manager' && group === '(admin)') {
+  if (session.role === 'manager' && group === '(admin)' && segments[2] !== 'users') {
     return <Redirect href="/(app)/(manager)/" />;
   }
 
