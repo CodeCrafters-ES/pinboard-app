@@ -63,13 +63,8 @@ export default function LoginScreen() {
   // Redirect once useSession resolves the profile after a successful sign-in
   useEffect(() => {
     if (status !== 'authenticated' || !session) return;
-    const target =
-      session.role === 'admin'
-        ? '/(app)/(admin)/'
-        : session.role === 'manager'
-          ? '/(app)/(manager)/'
-          : '/(app)/(staff)/';
-    router.replace(target as never);
+    // All roles share the unified tab bar; land everyone on the Tablón tab.
+    router.replace('/(app)/(tabs)/tablon' as never);
   }, [status, session, router]);
 
   async function handleLogin() {

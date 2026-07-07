@@ -92,13 +92,8 @@ export default function SetPasswordScreen() {
   // Navigate to role screen once session confirmed after password save
   useEffect(() => {
     if (!saved || status !== 'authenticated' || !session) return;
-    const target =
-      session.role === 'admin'
-        ? '/(app)/(admin)/'
-        : session.role === 'manager'
-          ? '/(app)/(manager)/'
-          : '/(app)/(staff)/';
-    router.replace(target as never);
+    // All roles share the unified tab bar; land everyone on the Tablón tab.
+    router.replace('/(app)/(tabs)/tablon' as never);
   }, [saved, status, session, router]);
 
   async function handleSubmit() {

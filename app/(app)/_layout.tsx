@@ -21,20 +21,19 @@ export default function AppLayout() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  const group = segments[1];
-  const adminRoute = segments[2] as string | undefined;
+  // Route shape: ['(app)', '(tabs)', <tab>, <subroute?>, ...]
+  const tab = segments[2] as string | undefined;
+  const adminRoute = segments[3] as string | undefined;
 
-  if (session.role === 'staff' && (group === '(manager)' || group === '(admin)')) {
-    return <Redirect href="/(app)/(staff)/" />;
-  }
-
-  const MANAGER_ADMIN_ROUTES = ['users', 'posts'];
-  if (
-    session.role === 'manager' &&
-    group === '(admin)' &&
-    !MANAGER_ADMIN_ROUTES.includes(adminRoute ?? '')
-  ) {
-    return <Redirect href="/(app)/(manager)/" />;
+  // The admin section lives under the "admin" tab. Staff can never enter it;
+  // managers may only reach post management (never user administration).
+  if (tab === 'admin') {
+    if (session.role === 'staff') {
+      return <Redirect href="/(app)/(tabs)/tablon" />;
+    }
+    if (session.role === 'manager' && adminRoute !== 'posts') {
+      return <Redirect href="/(app)/(tabs)/tablon" />;
+    }
   }
 
   return <Slot />;
