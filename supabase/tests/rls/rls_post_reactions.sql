@@ -1,6 +1,6 @@
 -- RLS tests: post_reactions table
--- Policies: post_reactions_select_authenticated, post_reactions_insert_self,
---           post_reactions_update_self, post_reactions_delete_self_or_admin
+-- Policies: post_reactions_select_authenticated, post_reactions_insert_own,
+--           post_reactions_update_own, post_reactions_delete_own
 -- refs: docs/adr/0002-rbac.md
 --
 -- Seed UUIDs (supabase/seed.sql):
@@ -9,7 +9,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(5);
+select plan(7);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -70,6 +70,32 @@ select throws_ok(
   '42501',
   null,
   'staff no puede insertar una reacción en nombre de otro usuario'
+);
+
+-- ── UPDATE ────────────────────────────────────────────────────────────────────
+
+-- Positive: staff can update their own reaction type
+select lives_ok(
+  $test$
+    update public.post_reactions set type = 'love'
+    where post_id = 'cccccccc-0000-0000-0000-000000000001'::uuid
+      and user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
+  $test$,
+  'staff puede actualizar su propia reacción'
+);
+
+-- Negative: staff cannot update another user's reaction
+select results_eq(
+  $test$
+    with res as (
+      update public.post_reactions set type = 'dislike'
+      where post_id = 'cccccccc-0000-0000-0000-000000000001'::uuid
+        and user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
+      returning 1
+    ) select count(*)::int from res
+  $test$,
+  $expected$ values (0) $expected$,
+  'staff no puede actualizar la reacción de otro usuario'
 );
 
 -- ── DELETE ────────────────────────────────────────────────────────────────────
