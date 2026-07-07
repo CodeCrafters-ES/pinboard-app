@@ -7,8 +7,8 @@ Documentación de los buckets de Supabase Storage del MVP de Nun Ibiza. Las deci
 | Bucket | Público | Límite | MIME admitidos | Migración |
 |---|---|---|---|---|
 | `avatars` | Sí | 2 MB | `image/webp` (ver nota) | `20260619200000_create_avatars_bucket.sql` |
-| `post-images` | No | 5 MB | `image/webp`, `image/png`, `image/jpeg` | `20260707000000_create_post_event_images_buckets.sql` |
-| `event-images` | No | 5 MB | `image/webp`, `image/png`, `image/jpeg` | `20260707000000_create_post_event_images_buckets.sql` |
+| `post-images` | No | 5 MB | `image/webp`, `image/png`, `image/jpeg` | `20260707010000_create_post_event_images_buckets.sql` |
+| `event-images` | No | 5 MB | `image/webp`, `image/png`, `image/jpeg` | `20260707010000_create_post_event_images_buckets.sql` |
 
 > **Nota:** ADR-005 documenta `avatars` con `image/webp`, `image/png` y `image/jpeg` admitidos. La migración ya desplegada solo permite `image/webp`, porque el cliente siempre convierte a WebP antes de subir (ver `hooks/useAvatarUpload.ts`). Se deja constancia aquí de la discrepancia; no se amplía el bucket en este issue por ser un cambio de comportamiento ajeno a su alcance.
 
