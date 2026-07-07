@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Image } from 'expo-image';
 
+import { supabase } from '@/lib/supabase';
 import { postSchema, type PostFormData } from '@/lib/validation/postSchema';
 import { Button } from '@/components/ui/Button';
 import { Text } from '@/components/ui/Text';
@@ -18,6 +20,10 @@ type FieldErrors = Partial<Record<keyof PostFormData, string>>;
 const INPUT_CLASS =
   'bg-white border border-nun-parchment rounded-xl px-4 py-3 text-[15px] text-nun-dark';
 
+function isValidUrl(url: string): boolean {
+  return url.startsWith('http://') || url.startsWith('https://');
+}
+
 export function PostComposerForm({
   initialValues,
   onSubmit,
@@ -33,6 +39,34 @@ export function PostComposerForm({
     initialValues?.status ?? 'draft',
   );
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [isScraping, setIsScraping] = useState(false);
+  const [coverImageUrl, setCoverImageUrl] = useState('');
+
+  const titleTouched    = useRef(Boolean(initialValues?.title));
+  const subtitleTouched = useRef(Boolean(initialValues?.subtitle));
+  const imageTouched    = useRef(false);
+  const scrapeTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function scrapeUrl(url: string) {
+    if (!isValidUrl(url)) return;
+    setIsScraping(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('scrape-og', { body: { url } });
+      if (!error && data) {
+        if (!titleTouched.current && data.title)          setTitle(data.title);
+        if (!subtitleTouched.current && data.description) setSubtitle(data.description);
+        if (!imageTouched.current && data.image)          setCoverImageUrl(data.image);
+      }
+    } finally {
+      setIsScraping(false);
+    }
+  }
+
+  function handleUrlChange(text: string) {
+    setExternalUrl(text);
+    if (scrapeTimer.current) clearTimeout(scrapeTimer.current);
+    scrapeTimer.current = setTimeout(() => scrapeUrl(text), 600);
+  }
 
   async function handleSubmit() {
     const result = postSchema.safeParse({
@@ -71,7 +105,7 @@ export function PostComposerForm({
         <TextInput
           className={INPUT_CLASS}
           value={title}
-          onChangeText={setTitle}
+          onChangeText={(v) => { titleTouched.current = true; setTitle(v); }}
           placeholder="Título del post…"
           placeholderTextColor="#8C7B6A"
           maxLength={200}
@@ -90,7 +124,7 @@ export function PostComposerForm({
         <TextInput
           className={INPUT_CLASS}
           value={subtitle}
-          onChangeText={setSubtitle}
+          onChangeText={(v) => { subtitleTouched.current = true; setSubtitle(v); }}
           placeholder="Subtítulo…"
           placeholderTextColor="#8C7B6A"
           maxLength={200}
@@ -103,13 +137,16 @@ export function PostComposerForm({
 
       {/* URL externa */}
       <View className="gap-1">
-        <Text className="text-xs font-semibold text-nun-muted uppercase tracking-wide">
-          URL externa *
-        </Text>
+        <View className="flex-row items-center gap-2">
+          <Text className="text-xs font-semibold text-nun-muted uppercase tracking-wide">
+            URL externa *
+          </Text>
+          {isScraping && <ActivityIndicator size="small" color="#8C7B6A" />}
+        </View>
         <TextInput
           className={INPUT_CLASS}
           value={externalUrl}
-          onChangeText={setExternalUrl}
+          onChangeText={handleUrlChange}
           placeholder="https://…"
           placeholderTextColor="#8C7B6A"
           keyboardType="url"
@@ -121,14 +158,28 @@ export function PostComposerForm({
         ) : null}
       </View>
 
-      {/* Portada (placeholder) */}
+      {/* Portada */}
       <View className="gap-1">
         <Text className="text-xs font-semibold text-nun-muted uppercase tracking-wide">
           Imagen de portada
         </Text>
-        <View className="bg-nun-sand border border-dashed border-nun-parchment rounded-xl px-4 py-6 items-center">
-          <Text className="text-xs text-nun-muted">Subida de imagen — próximamente</Text>
-        </View>
+        {coverImageUrl ? (
+          <View className="gap-1.5">
+            <Image
+              source={{ uri: coverImageUrl }}
+              contentFit="cover"
+              className="w-full h-32 rounded-xl"
+              accessibilityLabel="Imagen de portada"
+            />
+            <Text className="text-xs text-nun-muted" numberOfLines={1}>
+              {coverImageUrl}
+            </Text>
+          </View>
+        ) : (
+          <View className="bg-nun-sand border border-dashed border-nun-parchment rounded-xl px-4 py-6 items-center">
+            <Text className="text-xs text-nun-muted">Subida de imagen — próximamente</Text>
+          </View>
+        )}
       </View>
 
       {/* Cuerpo */}
