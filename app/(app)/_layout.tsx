@@ -22,12 +22,18 @@ export default function AppLayout() {
   }
 
   const group = segments[1];
+  const adminRoute = segments[2] as string | undefined;
 
   if (session.role === 'staff' && (group === '(manager)' || group === '(admin)')) {
     return <Redirect href="/(app)/(staff)/" />;
   }
 
-  if (session.role === 'manager' && group === '(admin)' && segments[2] !== 'users') {
+  const MANAGER_ADMIN_ROUTES = ['users', 'posts'];
+  if (
+    session.role === 'manager' &&
+    group === '(admin)' &&
+    !MANAGER_ADMIN_ROUTES.includes(adminRoute ?? '')
+  ) {
     return <Redirect href="/(app)/(manager)/" />;
   }
 

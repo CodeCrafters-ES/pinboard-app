@@ -72,14 +72,22 @@ describe('updateOwnProfile integration', () => {
     expect(error).not.toBeNull();
   });
 
-  it('allows authenticated users to read all profiles', async () => {
-    const { data, error } = await supabase
+  it('staff can read their own profile but not others', async () => {
+    // New policy: profiles_select_self_or_privileged — staff is restricted to own row.
+    const { data: others, error: othersError } = await supabase
       .from('profiles')
       .select('*')
       .neq('user_id', userId);
 
-    expect(error).toBeNull();
-    // SELECT policy is `using (true)`: any authenticated user sees all profiles.
-    expect(data!.length).toBeGreaterThan(0);
+    expect(othersError).toBeNull();
+    expect(others!.length).toBe(0);
+
+    const { data: own, error: ownError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId);
+
+    expect(ownError).toBeNull();
+    expect(own!.length).toBe(1);
   });
 });

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { signOut as authSignOut } from '@/lib/auth';
 import { registerPushToken } from '@/lib/notifications/pushToken';
 import { supabase } from '@/lib/supabase';
-import type { Database, UserRole } from '@/lib/database.types';
+import type { Database } from '@/lib/database.types';
+import type { UserRole } from '@/lib/types';
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 export type Profile = Database['public']['Tables']['profiles']['Row'];

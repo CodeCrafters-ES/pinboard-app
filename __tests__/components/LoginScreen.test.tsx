@@ -13,7 +13,11 @@ jest.mock('@/lib/auth', () => ({
 }));
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: jest.fn() }),
+}));
+
+jest.mock('@/hooks/useSession', () => ({
+  useSession: () => ({ session: null, status: 'unauthenticated' }),
 }));
 
 jest.mock('expo-notifications', () => ({

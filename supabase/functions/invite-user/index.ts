@@ -1,16 +1,12 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-type UserRole = 'staff' | 'manager' | 'admin'
-
-interface RequestBody {
-  email: string
-  role?: UserRole
-}
+const VALID_ROLES = ['staff', 'manager', 'admin'] as const
+type UserRole = (typeof VALID_ROLES)[number]
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -26,67 +22,60 @@ Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return json({ error: 'Missing Authorization header' }, 401)
 
+  // Verify the caller's JWT via the anon client (never trust the payload alone)
   const userClient = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } }
+    { global: { headers: { Authorization: authHeader } } },
   )
-
   const { data: { user }, error: authError } = await userClient.auth.getUser()
   if (authError || !user) return json({ error: 'Unauthorized' }, 401)
 
+  // Service-role client: bypasses RLS for the admin check and the invitation call
   const svc = createClient(
     Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  const { data: callerProfile } = await svc
+  const { data: profile } = await svc
     .from('profiles')
     .select('role')
     .eq('user_id', user.id)
     .single()
 
-  if (callerProfile?.role !== 'admin') {
+  if (profile?.role !== 'admin') {
     return new Response('Forbidden', { status: 403, headers: CORS })
   }
 
-  let body: RequestBody
+  let email: string
+  let role: UserRole
   try {
-    body = await req.json()
+    const body = await req.json()
+    email = body.email
+    role = VALID_ROLES.includes(body.role) ? (body.role as UserRole) : 'staff'
   } catch {
     return json({ error: 'Invalid JSON body' }, 400)
   }
-
-  const { email, role = 'staff' } = body
 
   if (!email || typeof email !== 'string') {
     return json({ error: 'email (string) is required' }, 400)
   }
 
-  const validRoles: UserRole[] = ['staff', 'manager', 'admin']
-  if (!validRoles.includes(role)) {
-    return json({ error: `role must be one of: ${validRoles.join(', ')}` }, 400)
-  }
-
-  const { data: inviteData, error: inviteError } = await svc.auth.admin.inviteUserByEmail(
-    email,
-    {
-      redirectTo: 'nun-ibiza://auth/set-password',
-      data: { role },
-    }
-  )
+  const { data, error: inviteError } = await svc.auth.admin.inviteUserByEmail(email, {
+    redirectTo: 'nun-ibiza://auth/set-password',
+    data: { role },
+  })
 
   if (inviteError) {
-    const status = inviteError.message?.toLowerCase().includes('already') ? 400 : 500
-    return json({ error: inviteError.message }, status)
+    return json({ error: inviteError.message }, 400)
   }
 
-  await svc
-    .from('profiles')
-    .upsert(
-      { user_id: inviteData.user.id, email: inviteData.user.email ?? email, role },
-      { onConflict: 'user_id', ignoreDuplicates: false }
-    )
+  // Safety-net upsert: handle_new_user trigger already creates the profile on invite,
+  // but we ensure the requested role is persisted in case the trigger defaulted to 'staff'.
+  await svc.from('profiles').upsert(
+    { user_id: data.user.id, email: data.user.email!, role },
+    { onConflict: 'user_id' },
+  )
 
-  return json({ id: inviteData.user.id, email: inviteData.user.email ?? email })
+  return json({ id: data.user.id, email: data.user.email })
 })

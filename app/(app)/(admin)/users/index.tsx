@@ -1,199 +1,245 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
-  Text,
+  ScrollView,
   TextInput,
   View,
 } from 'react-native';
+import { useState } from 'react';
 import { Image } from 'expo-image';
-import { Stack } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useSession } from '@/hooks/useSession';
 import { supabase } from '@/lib/supabase';
-import { listProfiles, updateUserRole } from '@/lib/supabase/queries/profiles';
-import type { UserRole } from '@/lib/database.types';
-import type { Database } from '@/lib/database.types';
-import { Button } from '@/components/ui';
-
-type Profile = Database['public']['Tables']['profiles']['Row'];
-
-const PAGE_SIZE = 25;
+import { useSession } from '@/hooks/useSession';
+import { useUserList, type Profile, type RoleFilter, type UserRole } from '@/hooks/useUserList';
+import { Text } from '@/components/ui';
 
 const ROLE_LABEL: Record<UserRole, string> = {
-  staff: 'Staff',
-  manager: 'Manager',
   admin: 'Admin',
+  manager: 'Manager',
+  staff: 'Staff',
 };
 
-const ROLE_BADGE: Record<UserRole, string> = {
-  staff: 'bg-nun-parchment',
-  manager: 'bg-nun-sky',
-  admin: 'bg-nun-sky',
+const ROLE_BADGE_BG: Record<UserRole, string> = {
+  admin: 'bg-nun-brown',
+  manager: 'bg-nun-sea',
+  staff: 'bg-nun-sage',
 };
 
-const ROLE_TEXT: Record<UserRole, string> = {
-  staff: 'text-nun-muted',
-  manager: 'text-nun-sea',
-  admin: 'text-nun-sea',
-};
-
-const ROLE_FILTERS: Array<{ label: string; value: UserRole | null }> = [
-  { label: 'Todos', value: null },
+const ROLE_FILTERS: { label: string; value: RoleFilter }[] = [
+  { label: 'Todos', value: 'all' },
   { label: 'Admin', value: 'admin' },
   { label: 'Manager', value: 'manager' },
   { label: 'Staff', value: 'staff' },
 ];
 
-function avatarUri(url: string) {
-  return `${url}?width=64&height=64&resize=cover`;
+const INVITE_ROLES: UserRole[] = ['staff', 'manager', 'admin'];
+
+function toThumbnailUrl(url: string | null): string | null {
+  if (!url) return null;
+  const base = url.split('?')[0]?.replace('/object/public/', '/render/image/public/') ?? '';
+  return `${base}?width=64&height=64&resize=cover`;
 }
 
-function UserRow({
-  item,
-  isAdmin,
-  onChangeRole,
-}: {
-  item: Profile;
-  isAdmin: boolean;
-  onChangeRole: (profile: Profile) => void;
-}) {
-  const displayName = [item.name, item.surname].filter(Boolean).join(' ') || item.email;
-  const initials = displayName
-    .split(' ')
-    .map((w: string) => w[0])
+function fullName(profile: Profile): string {
+  return [profile.name, profile.surname].filter(Boolean).join(' ') || '—';
+}
+
+function initials(profile: Profile): string {
+  return [profile.name, profile.surname]
+    .filter(Boolean)
+    .map((w) => w![0])
     .join('')
     .slice(0, 2)
-    .toUpperCase();
+    .toUpperCase() || '?';
+}
 
+function RoleBadge({ role }: { role: UserRole }) {
   return (
-    <View className="flex-row items-center gap-3 bg-white rounded-xl px-4 py-3 mb-2">
-      {item.avatar_url ? (
-        <Image
-          source={{ uri: avatarUri(item.avatar_url) }}
-          contentFit="cover"
-          className="w-12 h-12 rounded-full"
-        />
-      ) : (
-        <View className="w-12 h-12 rounded-full bg-nun-sand items-center justify-center">
-          <Text className="text-[15px] font-semibold text-nun-muted">{initials}</Text>
-        </View>
-      )}
-
-      <View className="flex-1 gap-0.5">
-        <Text className="text-[15px] font-semibold text-nun-dark" numberOfLines={1}>
-          {displayName}
-        </Text>
-        <Text className="text-[13px] text-nun-muted" numberOfLines={1}>
-          {item.email}
-        </Text>
-        <View
-          className={`self-start rounded-full px-2 py-0.5 mt-0.5 ${ROLE_BADGE[item.role as UserRole] ?? 'bg-nun-parchment'}`}
-        >
-          <Text
-            className={`text-[11px] font-semibold ${ROLE_TEXT[item.role as UserRole] ?? 'text-nun-muted'}`}
-          >
-            {ROLE_LABEL[item.role as UserRole] ?? item.role}
-          </Text>
-        </View>
-      </View>
-
-      {isAdmin ? (
-        <Pressable
-          onPress={() => onChangeRole(item)}
-          className="bg-nun-sand border border-nun-parchment rounded-lg px-3 py-1.5 active:opacity-70"
-          accessibilityLabel={`Cambiar rol de ${displayName}`}
-        >
-          <Text className="text-[13px] font-medium text-nun-dark">Rol</Text>
-        </Pressable>
-      ) : null}
+    <View className={`self-start rounded-full px-2 py-0.5 ${ROLE_BADGE_BG[role]}`}>
+      <Text className="text-[11px] text-white font-semibold">{ROLE_LABEL[role]}</Text>
     </View>
   );
 }
 
-interface InviteModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onInvite: (email: string, role: UserRole) => Promise<void>;
+function UserRow({
+  profile,
+  isAdmin,
+  onChangeRole,
+}: {
+  profile: Profile;
+  isAdmin: boolean;
+  onChangeRole: (p: Profile) => void;
+}) {
+  const thumbUrl = toThumbnailUrl(profile.avatar_url);
+  const name = fullName(profile);
+  const ini = initials(profile);
+
+  return (
+    <View className="flex-row items-center gap-3 bg-white mx-4 my-1 rounded-xl px-3 py-3">
+      {thumbUrl ? (
+        <Image
+          source={{ uri: thumbUrl }}
+          contentFit="cover"
+          className="w-16 h-16 rounded-full"
+          accessibilityLabel={`Avatar de ${name}`}
+        />
+      ) : (
+        <View className="w-16 h-16 rounded-full bg-nun-sand items-center justify-center">
+          <Text className="text-lg font-semibold text-nun-muted">{ini}</Text>
+        </View>
+      )}
+
+      <View className="flex-1 gap-1">
+        <Text className="text-[15px] font-semibold text-nun-dark">{name}</Text>
+        <Text className="text-xs text-nun-muted" numberOfLines={1}>{profile.email}</Text>
+        <RoleBadge role={profile.role as UserRole} />
+      </View>
+
+      {isAdmin && (
+        <Pressable
+          onPress={() => onChangeRole(profile)}
+          accessibilityRole="button"
+          accessibilityLabel={`Cambiar rol de ${name}`}
+          className="px-2 py-1"
+        >
+          <Text className="text-xs text-nun-sea font-semibold">Cambiar rol</Text>
+        </Pressable>
+      )}
+    </View>
+  );
 }
 
-function InviteModal({ visible, onClose, onInvite }: InviteModalProps) {
+function RoleFilterBar({
+  roleFilter,
+  setRoleFilter,
+}: {
+  roleFilter: RoleFilter;
+  setRoleFilter: (r: RoleFilter) => void;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      className="px-4"
+      contentContainerClassName="gap-2 py-2"
+    >
+      {ROLE_FILTERS.map((f) => (
+        <Pressable
+          key={f.value}
+          onPress={() => setRoleFilter(f.value)}
+          accessibilityRole="button"
+          accessibilityState={{ selected: roleFilter === f.value }}
+          className={`rounded-full px-3 py-1.5 ${roleFilter === f.value ? 'bg-nun-brown' : 'bg-nun-sand'}`}
+        >
+          <Text
+            className={`text-xs font-medium ${roleFilter === f.value ? 'text-white' : 'text-nun-dark'}`}
+          >
+            {f.label}
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
+function InviteModal({
+  visible,
+  onClose,
+  onSuccess,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('staff');
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function reset() {
     setEmail('');
     setRole('staff');
-    setIsLoading(false);
+    setLoading(false);
+    setError(null);
+  }
+
+  function handleClose() {
+    reset();
+    onClose();
   }
 
   async function handleSubmit() {
-    const trimmed = email.trim().toLowerCase();
-    if (!trimmed || !trimmed.includes('@')) {
-      Alert.alert('Email inválido', 'Introduce un email válido.');
+    if (!email.trim()) {
+      setError('El email es obligatorio.');
       return;
     }
-    setIsLoading(true);
-    try {
-      await onInvite(trimmed, role);
-      reset();
-      onClose();
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'No se pudo enviar la invitación.';
-      Alert.alert('Error', message);
-    } finally {
-      setIsLoading(false);
+    setLoading(true);
+    setError(null);
+
+    const { error: fnError } = await supabase.functions.invoke('invite-user', {
+      body: { email: email.trim(), role },
+    });
+
+    setLoading(false);
+
+    if (fnError) {
+      setError(fnError.message);
+      return;
     }
+
+    reset();
+    onSuccess();
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable
-        className="flex-1 bg-black/50 justify-center px-5"
-        onPress={onClose}
-        accessibilityLabel="Cerrar modal"
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={handleClose}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1 justify-center items-center bg-black/50 px-6"
       >
-        <Pressable
-          className="bg-nun-linen rounded-2xl p-5 gap-4"
-          onPress={(e) => e.stopPropagation()}
-        >
-          <Text className="text-[18px] font-bold text-nun-dark">Invitar usuario</Text>
+        <View className="w-full bg-white rounded-2xl p-6 gap-4">
+          <Text className="text-[17px] font-semibold text-nun-dark">Invitar usuario</Text>
 
+          {/* Email */}
           <View className="gap-1.5">
-            <Text className="text-[13px] font-medium text-nun-dark">Email</Text>
+            <Text className="text-xs text-nun-muted font-medium">Email</Text>
             <TextInput
-              className="bg-white border border-nun-parchment rounded-xl px-4 py-3 text-[15px] text-nun-dark"
               value={email}
               onChangeText={setEmail}
-              placeholder="nombre@ejemplo.com"
-              placeholderTextColor="#8C7B6A"
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              placeholder="nombre@nunibiza.com"
+              placeholderTextColor="#8C7B6A"
+              className="bg-nun-linen border border-nun-parchment rounded-xl px-4 py-3 text-[15px] text-nun-dark"
             />
           </View>
 
+          {/* Role */}
           <View className="gap-1.5">
-            <Text className="text-[13px] font-medium text-nun-dark">Rol inicial</Text>
+            <Text className="text-xs text-nun-muted font-medium">Rol</Text>
             <View className="flex-row gap-2">
-              {(['staff', 'manager', 'admin'] as UserRole[]).map((r) => (
+              {INVITE_ROLES.map((r) => (
                 <Pressable
                   key={r}
                   onPress={() => setRole(r)}
-                  className={`flex-1 py-2 rounded-xl items-center border ${
-                    role === r
-                      ? 'bg-nun-brown border-nun-brown'
-                      : 'bg-white border-nun-parchment'
-                  }`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: role === r }}
+                  className={`flex-1 items-center rounded-full py-2 ${role === r ? 'bg-nun-brown' : 'bg-nun-sand'}`}
                 >
-                  <Text
-                    className={`text-[13px] font-semibold ${role === r ? 'text-white' : 'text-nun-dark'}`}
-                  >
+                  <Text className={`text-xs font-medium ${role === r ? 'text-white' : 'text-nun-dark'}`}>
                     {ROLE_LABEL[r]}
                   </Text>
                 </Pressable>
@@ -201,120 +247,95 @@ function InviteModal({ visible, onClose, onInvite }: InviteModalProps) {
             </View>
           </View>
 
-          <View className="flex-row gap-3 mt-1">
-            <Button
-              label="Cancelar"
-              variant="secondary"
-              onPress={onClose}
-              className="flex-1"
-            />
-            <Button
-              label={isLoading ? 'Enviando…' : 'Invitar'}
-              variant="primary"
+          {/* Error */}
+          {error ? (
+            <Text className="text-xs text-nun-error">{error}</Text>
+          ) : null}
+
+          {/* Actions */}
+          <View className="flex-row gap-3 pt-1">
+            <Pressable
+              onPress={handleClose}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar"
+              className="flex-1 items-center rounded-xl border border-nun-parchment py-3"
+            >
+              <Text className="text-[15px] font-medium text-nun-dark">Cancelar</Text>
+            </Pressable>
+            <Pressable
               onPress={handleSubmit}
-              disabled={isLoading}
-              className="flex-1"
-            />
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="Invitar"
+              className={`flex-1 items-center rounded-xl py-3 ${loading ? 'bg-nun-sand' : 'bg-nun-brown'}`}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-[15px] font-semibold text-white">Invitar</Text>
+              )}
+            </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-export default function UsersScreen() {
+export default function UserListScreen() {
   const { session } = useSession();
-  const isAdmin = session?.role === 'admin';
-
-  const [rows, setRows] = useState<Profile[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<UserRole | null>(null);
+  const {
+    profiles,
+    loading,
+    error,
+    inputValue,
+    setInputValue,
+    roleFilter,
+    setRoleFilter,
+    hasMore,
+    loadNextPage,
+    changeRole,
+    refresh,
+  } = useUserList();
   const [inviteVisible, setInviteVisible] = useState(false);
 
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSearch = useRef('');
-
-  const load = useCallback(async (opts: { search: string; role: UserRole | null; page: number; append: boolean }) => {
-    const isFirst = !opts.append;
-    isFirst ? setIsLoading(true) : setIsLoadingMore(true);
-    setError(null);
-    try {
-      const result = await listProfiles({
-        search: opts.search || undefined,
-        role: opts.role,
-        page: opts.page,
-        pageSize: PAGE_SIZE,
-      });
-      setTotal(result.total);
-      setRows((prev) => (opts.append ? [...prev, ...result.rows] : result.rows));
-      setPage(opts.page);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al cargar usuarios.');
-    } finally {
-      isFirst ? setIsLoading(false) : setIsLoadingMore(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load({ search, role: roleFilter, page: 0, append: false });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleFilter]);
-
-  function handleSearchChange(text: string) {
-    setSearch(text);
-    pendingSearch.current = text;
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => {
-      load({ search: pendingSearch.current, role: roleFilter, page: 0, append: false });
-    }, 400);
+  if (session && session.role !== 'admin' && session.role !== 'manager') {
+    return <Redirect href="/(app)/(staff)/" />;
   }
 
-  function handleLoadMore() {
-    if (rows.length >= total || isLoadingMore) return;
-    load({ search, role: roleFilter, page: page + 1, append: true });
-  }
+  const isAdmin = session?.role === 'admin';
 
   function handleChangeRole(profile: Profile) {
-    const options = (['admin', 'manager', 'staff'] as UserRole[]).filter(
-      (r) => r !== profile.role
-    );
+    const name = fullName(profile);
+    const roles: UserRole[] = ['admin', 'manager', 'staff'];
+
     Alert.alert(
       'Cambiar rol',
-      `Usuario: ${[profile.name, profile.surname].filter(Boolean).join(' ') || profile.email}\nRol actual: ${ROLE_LABEL[profile.role as UserRole]}`,
+      name,
       [
-        ...options.map((r) => ({
-          text: `→ ${ROLE_LABEL[r]}`,
-          onPress: () => confirmRoleChange(profile, r),
-        })),
+        ...roles
+          .filter((r) => r !== profile.role)
+          .map((r) => ({
+            text: ROLE_LABEL[r],
+            onPress: async () => {
+              const result = await changeRole(profile.id, r);
+              if (result.error) {
+                Alert.alert('Error', result.error);
+              }
+            },
+          })),
         { text: 'Cancelar', style: 'cancel' as const },
-      ]
+      ],
     );
   }
 
-  async function confirmRoleChange(profile: Profile, newRole: UserRole) {
-    try {
-      await updateUserRole(profile.user_id, newRole);
-      setRows((prev) =>
-        prev.map((p) => (p.user_id === profile.user_id ? { ...p, role: newRole } : p))
-      );
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'No se pudo cambiar el rol.';
-      Alert.alert('Error', message);
-    }
+  function handleInviteSuccess() {
+    setInviteVisible(false);
+    Alert.alert('Invitación enviada', 'El usuario recibirá un email para activar su cuenta.');
   }
 
-  async function handleInvite(email: string, role: UserRole) {
-    const { error: fnError } = await supabase.functions.invoke('invite-user', {
-      body: { email, role },
-    });
-    if (fnError) throw new Error(fnError.message);
-    load({ search, role: roleFilter, page: 0, append: false });
-  }
+  const isRefreshing = loading && profiles.length === 0;
 
   return (
     <SafeAreaView className="flex-1 bg-nun-linen" edges={['bottom']}>
@@ -326,95 +347,75 @@ export default function UsersScreen() {
             ? () => (
                 <Pressable
                   onPress={() => setInviteVisible(true)}
-                  className="mr-1 px-3 py-1.5 bg-nun-brown rounded-xl active:opacity-70"
+                  accessibilityRole="button"
                   accessibilityLabel="Invitar usuario"
+                  className="pr-1"
                 >
-                  <Text className="text-white text-[13px] font-semibold">+ Invitar</Text>
+                  <Text className="text-nun-sea font-semibold text-[15px]">+ Invitar</Text>
                 </Pressable>
               )
             : undefined,
         }}
       />
 
-      <View className="px-4 pt-3 pb-2 gap-3">
-        {/* Search */}
+      {/* Search */}
+      <View className="px-4 pt-3 pb-1">
         <TextInput
-          className="bg-white border border-nun-parchment rounded-xl px-4 py-2.5 text-[15px] text-nun-dark"
-          value={search}
-          onChangeText={handleSearchChange}
+          className="bg-white border border-nun-parchment rounded-xl px-4 py-3 text-[15px] text-nun-dark"
+          value={inputValue}
+          onChangeText={setInputValue}
           placeholder="Buscar por nombre o email…"
           placeholderTextColor="#8C7B6A"
+          clearButtonMode="while-editing"
           autoCapitalize="none"
           autoCorrect={false}
-          clearButtonMode="while-editing"
         />
-
-        {/* Role filter */}
-        <View className="flex-row gap-2">
-          {ROLE_FILTERS.map((f) => (
-            <Pressable
-              key={f.label}
-              onPress={() => setRoleFilter(f.value)}
-              className={`px-3 py-1.5 rounded-full border ${
-                roleFilter === f.value
-                  ? 'bg-nun-brown border-nun-brown'
-                  : 'bg-white border-nun-parchment'
-              }`}
-            >
-              <Text
-                className={`text-[13px] font-medium ${roleFilter === f.value ? 'text-white' : 'text-nun-dark'}`}
-              >
-                {f.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
       </View>
 
-      {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#6B4F3A" />
+      {/* Role filters */}
+      <RoleFilterBar roleFilter={roleFilter} setRoleFilter={setRoleFilter} />
+
+      {/* Error */}
+      {error ? (
+        <View className="mx-4 mb-2 bg-red-50 border border-nun-error rounded-xl px-4 py-3">
+          <Text className="text-xs text-nun-error">{error}</Text>
         </View>
-      ) : error ? (
-        <View className="flex-1 items-center justify-center gap-3 px-8">
-          <Text className="text-nun-muted text-center">{error}</Text>
-          <Button
-            label="Reintentar"
-            variant="secondary"
-            onPress={() => load({ search, role: roleFilter, page: 0, append: false })}
-          />
-        </View>
-      ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={(item) => item.user_id}
-          renderItem={({ item }) => (
-            <UserRow item={item} isAdmin={isAdmin} onChangeRole={handleChangeRole} />
-          )}
-          contentContainerClassName="px-4 pt-1 pb-6"
-          ListEmptyComponent={
-            <View className="items-center justify-center pt-16">
-              <Text className="text-nun-muted">No hay usuarios.</Text>
+      ) : null}
+
+      {/* List */}
+      <FlatList
+        data={profiles}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <UserRow profile={item} isAdmin={isAdmin} onChangeRole={handleChangeRole} />
+        )}
+        onEndReached={loadNextPage}
+        onEndReachedThreshold={0.3}
+        refreshing={isRefreshing}
+        onRefresh={refresh}
+        contentContainerClassName="pb-6 pt-1"
+        ListEmptyComponent={
+          !loading ? (
+            <View className="flex-1 items-center justify-center py-16">
+              <Text className="text-nun-muted text-[15px]">No se encontraron usuarios.</Text>
             </View>
-          }
-          ListFooterComponent={
-            rows.length < total ? (
-              <Button
-                label={isLoadingMore ? 'Cargando…' : `Cargar más (${total - rows.length} restantes)`}
-                variant="secondary"
-                disabled={isLoadingMore}
-                onPress={handleLoadMore}
-                className="mt-2"
-              />
-            ) : null
-          }
-        />
-      )}
+          ) : null
+        }
+        ListFooterComponent={
+          loading && profiles.length > 0 ? (
+            <ActivityIndicator className="py-4" color="#7D5A3A" />
+          ) : hasMore && !loading && profiles.length > 0 ? (
+            <View className="py-4 items-center">
+              <Text className="text-xs text-nun-muted">Cargando más…</Text>
+            </View>
+          ) : null
+        }
+      />
 
       <InviteModal
         visible={inviteVisible}
         onClose={() => setInviteVisible(false)}
-        onInvite={handleInvite}
+        onSuccess={handleInviteSuccess}
       />
     </SafeAreaView>
   );
