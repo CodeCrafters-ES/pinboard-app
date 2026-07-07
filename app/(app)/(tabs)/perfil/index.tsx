@@ -79,11 +79,18 @@ export default function ProfileScreen() {
             onPress={() => router.push('/(app)/(tabs)/perfil/edit')}
           />
           {session?.role === 'manager' ? (
-            <Button
-              label="Gestionar posts"
-              variant="secondary"
-              onPress={() => router.push('/(app)/(tabs)/admin/posts')}
-            />
+            <>
+              <Button
+                label="Gestionar posts"
+                variant="secondary"
+                onPress={() => router.push('/(app)/(tabs)/admin/posts')}
+              />
+              <Button
+                label="Gestión de usuarios"
+                variant="secondary"
+                onPress={() => router.push('/(app)/(tabs)/admin/users')}
+              />
+            </>
           ) : null}
           <Button
             label="Cerrar sesión"

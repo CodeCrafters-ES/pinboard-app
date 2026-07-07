@@ -26,12 +26,13 @@ export default function AppLayout() {
   const adminRoute = segments[3] as string | undefined;
 
   // The admin section lives under the "admin" tab. Staff can never enter it;
-  // managers may only reach post management (never user administration).
+  // managers may reach post management and the (read-only) user list, but not
+  // the admin panel index (invitations, role changes stay admin-only).
   if (tab === 'admin') {
     if (session.role === 'staff') {
       return <Redirect href="/(app)/(tabs)/tablon" />;
     }
-    if (session.role === 'manager' && adminRoute !== 'posts') {
+    if (session.role === 'manager' && adminRoute !== 'posts' && adminRoute !== 'users') {
       return <Redirect href="/(app)/(tabs)/tablon" />;
     }
   }
