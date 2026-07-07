@@ -10,6 +10,7 @@ export type PostInsertData = {
   title: string;
   subtitle?: string | null;
   external_url: string;
+  cover_image_url?: string | null;
   body?: string | null;
   status: PostStatus;
 };
@@ -18,6 +19,7 @@ export type PostUpdateData = {
   title?: string;
   subtitle?: string | null;
   external_url?: string;
+  cover_image_url?: string | null;
   body?: string | null;
   status?: PostStatus;
   published_at?: string | null;

@@ -41,12 +41,12 @@ export function PostComposerForm({
   );
   const [errors, setErrors] = useState<FieldErrors>({});
   const [isScraping, setIsScraping] = useState(false);
-  const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [coverImageUrl, setCoverImageUrl] = useState(initialValues?.cover_image_url ?? '');
   const [scrapeBanner, setScrapeBanner] = useState<string | null>(null);
 
   const titleTouched      = useRef(Boolean(initialValues?.title));
   const subtitleTouched   = useRef(Boolean(initialValues?.subtitle));
-  const imageTouched      = useRef(false);
+  const imageTouched      = useRef(Boolean(initialValues?.cover_image_url));
   const scrapeTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrapeBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -88,6 +88,7 @@ export function PostComposerForm({
       title: title.trim(),
       subtitle: subtitle.trim() || undefined,
       external_url: externalUrl.trim(),
+      cover_image_url: coverImageUrl.trim() || null,
       body: body.trim() || undefined,
       status,
     });

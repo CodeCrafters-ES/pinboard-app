@@ -22,6 +22,7 @@ export default function NewPostScreen() {
       title: data.title,
       subtitle: data.subtitle ?? null,
       external_url: data.external_url,
+      cover_image_url: data.cover_image_url ?? null,
       body: data.body ?? null,
       status: data.status,
     });
