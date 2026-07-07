@@ -74,13 +74,13 @@ export default function AdminPanel() {
         <Button
           label="Gestionar posts"
           variant="primary"
-          onPress={() => router.push('/(app)/(admin)/posts')}
+          onPress={() => router.push('/(app)/(tabs)/admin/posts')}
           className="w-full"
         />
         <Button
           label="Gestionar usuarios"
           variant="secondary"
-          onPress={() => router.push('/(app)/(admin)/users')}
+          onPress={() => router.push('/(app)/(tabs)/admin/users')}
           className="w-full"
         />
         <Button
@@ -92,7 +92,7 @@ export default function AdminPanel() {
         <Button
           label="Mi perfil"
           variant="secondary"
-          onPress={() => router.push('/profile')}
+          onPress={() => router.push('/(app)/(tabs)/perfil')}
           className="w-full"
         />
       </View>

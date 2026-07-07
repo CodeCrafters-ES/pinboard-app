@@ -155,7 +155,7 @@ describe('SetPasswordScreen', () => {
 
     await waitFor(() => {
       expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'SecurePass1!' });
-      expect(mockReplace).toHaveBeenCalledWith('/(app)/(staff)/');
+      expect(mockReplace).toHaveBeenCalledWith('/(app)/(tabs)/tablon');
     });
   });
 

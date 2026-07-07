@@ -60,7 +60,7 @@ export default function FeedScreen() {
           renderItem={({ item }) => (
             <PostCard
               post={item}
-              onPress={() => router.push(`/(app)/(staff)/${item.id}` as never)}
+              onPress={() => router.push(`/(app)/(tabs)/tablon/${item.id}` as never)}
             />
           )}
           onEndReached={loadMore}

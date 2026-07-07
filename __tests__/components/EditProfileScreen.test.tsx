@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, fireEvent, waitFor, screen } from '@testing-library/react-native';
 
-import EditProfileScreen from '@/app/(app)/profile/edit';
+import EditProfileScreen from '@/app/(app)/(tabs)/perfil/edit';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 

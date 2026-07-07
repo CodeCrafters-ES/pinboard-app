@@ -2,7 +2,7 @@ import React from 'react';
 import { Linking } from 'react-native';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 
-import PostDetailScreen from '@/app/(app)/(staff)/[id]';
+import PostDetailScreen from '@/app/(app)/(tabs)/tablon/[id]';
 import type { PostDetail } from '@/hooks/usePostDetail';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────

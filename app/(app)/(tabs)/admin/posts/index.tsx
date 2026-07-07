@@ -70,7 +70,7 @@ export default function PostsListScreen() {
   const { posts, loading, error, hasMore, loadNextPage, refresh } = usePosts({ authorId });
 
   if (session && session.role === 'staff') {
-    return <Redirect href="/(app)/(staff)/" />;
+    return <Redirect href="/(app)/(tabs)/tablon" />;
   }
 
   const isRefreshing = loading && posts.length === 0;
@@ -83,7 +83,7 @@ export default function PostsListScreen() {
           headerShown: true,
           headerRight: () => (
             <Pressable
-              onPress={() => router.push('/(app)/(admin)/posts/new')}
+              onPress={() => router.push('/(app)/(tabs)/admin/posts/new')}
               accessibilityRole="button"
               accessibilityLabel="Nuevo post"
               className="pr-2 py-1"
@@ -104,7 +104,7 @@ export default function PostsListScreen() {
         data={posts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <PostRow post={item} onPress={() => router.push(`/(app)/(admin)/posts/${item.id}/edit`)} />
+          <PostRow post={item} onPress={() => router.push(`/(app)/(tabs)/admin/posts/${item.id}/edit`)} />
         )}
         onEndReached={loadNextPage}
         onEndReachedThreshold={0.3}

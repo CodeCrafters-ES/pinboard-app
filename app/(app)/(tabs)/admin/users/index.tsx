@@ -301,7 +301,7 @@ export default function UserListScreen() {
   const [inviteVisible, setInviteVisible] = useState(false);
 
   if (session && session.role !== 'admin' && session.role !== 'manager') {
-    return <Redirect href="/(app)/(staff)/" />;
+    return <Redirect href="/(app)/(tabs)/tablon" />;
   }
 
   const isAdmin = session?.role === 'admin';

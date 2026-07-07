@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react-native';
 
-import PostsListScreen from '@/app/(app)/(admin)/posts/index';
+import PostsListScreen from '@/app/(app)/(tabs)/admin/posts/index';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
