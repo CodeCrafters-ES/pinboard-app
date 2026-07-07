@@ -4,7 +4,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import Markdown from 'react-native-markdown-display';
 
 import { usePostDetail } from '@/hooks/usePostDetail';
+import { usePostReactions } from '@/hooks/usePostReactions';
 import { Button, Text } from '@/components/ui';
+import { ReactionPicker } from '@/components/reactions';
 
 function getCoverUrl(url: string): string {
   return (
@@ -39,6 +41,7 @@ export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { post, loading, error } = usePostDetail(id);
+  const { myReaction, counts, loading: reactionsLoading, toggle } = usePostReactions(id ?? '');
 
   // Punto de inserción para el futuro tracker de engagement (EPIC-N04, ADR-001):
   // aquí se registrará el evento `view` una vez cargado `post`. No implementado en este issue.
@@ -101,6 +104,13 @@ export default function PostDetailScreen() {
                 {post.published_at ? ` · ${formatRelativeTime(post.published_at)}` : ''}
               </Text>
             </View>
+
+            <ReactionPicker
+              activeReaction={myReaction}
+              counts={counts}
+              onToggle={toggle}
+              loading={reactionsLoading}
+            />
 
             <Button
               label="Leer noticia →"
