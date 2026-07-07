@@ -2,6 +2,7 @@
 
 **Estado:** Aceptado
 **Fecha:** 2026-06-27
+**Revisado:** 2026-07-07 — path convention alineada con la issue #148 (nombre de fichero determinista en lugar de `{uuid}`)
 **Autores:** Alex Zapata
 **Issues:** [EPIC-A00 #45](https://github.com/CodeCrafters-ES/pinboard-app/issues/45) · [I-F-A00-05-01 #58](https://github.com/CodeCrafters-ES/pinboard-app/issues/58) · [I-F-A00-05-02 #59](https://github.com/CodeCrafters-ES/pinboard-app/issues/59)
 
@@ -37,13 +38,19 @@ Los buckets privados requieren que el cliente incluya el JWT de Supabase en la s
 
 | Bucket | Path |
 |---|---|
-| `avatars` | `{user_id}/{uuid}.webp` |
-| `post-images` | `{user_id}/{uuid}.webp` |
-| `event-images` | `{user_id}/{uuid}.webp` |
+| `avatars` | `{auth.uid()}/avatar.webp` |
+| `post-images` | `{author_id}/{post_id}/cover.webp` |
+| `event-images` | `{author_id}/{event_id}/cover.webp` |
 
-El primer segmento del path es siempre el `user_id` del propietario. Esto permite a las RLS policies de Storage validar la propiedad con `auth.uid()::text = (storage.foldername(name))[1]` sin necesidad de JOIN, según el contrato establecido en [ADR-002](0002-rbac.md).
+El primer segmento del path es siempre el `user_id` del propietario (`auth.uid()` para avatares, `author_id` para posts/eventos). Esto permite a las RLS policies de Storage validar la propiedad con `auth.uid()::text = (storage.foldername(name))[1]` sin necesidad de JOIN, según el contrato establecido en [ADR-002](0002-rbac.md).
 
-El UUID del objeto (segundo segmento) se genera en cliente con `crypto.randomUUID()` antes del upload, lo que permite construir la URL final antes de que el upload complete (optimista).
+El nombre de fichero es **determinista** (`avatar.webp`, `cover.webp`), no un UUID aleatorio. Consecuencias:
+
+- **Avatares:** el path es conocido en cuanto se tiene el `uid`, así que la URL se construye antes del upload (optimista) sin generar identificadores.
+- **Posts / eventos:** se crea primero la fila (los posts nacen `status = 'draft'`) para obtener el `post_id` / `event_id`, y luego se sube la portada a `{entity_id}/cover.webp`. La URL final es predecible a partir del id de la entidad.
+- Reemplazar una imagen es un **UPDATE (upsert)** sobre el mismo objeto: no genera huérfanos ni requiere DELETE (ver policy `avatars_update_own` en `create_avatars_bucket.sql`).
+
+Al ser una única imagen por entidad (`profiles.avatar_url`, `posts.cover_image_url`, `events.image_url`), el nombre fijo basta para identificarla; no se necesita UUID de desambiguación.
 
 ---
 
@@ -172,7 +179,7 @@ Solo se sube al bucket la imagen en resolución `full` (procesada según el pipe
 Cuando el volumen de imágenes justifique centralizar las transformaciones, se activará **Supabase Image Transformations**. Las variantes se solicitarán vía querystring sobre la URL del objeto:
 
 ```text
-https://<project>.supabase.co/storage/v1/render/image/public/avatars/{user_id}/{uuid}.webp
+https://<project>.supabase.co/storage/v1/render/image/public/avatars/{auth.uid()}/avatar.webp
   ?width=100&height=100&resize=cover&quality=80
 ```
 
@@ -193,6 +200,8 @@ Un objeto de Storage se considera **huérfano** cuando han transcurrido más de 
 | `event-images` | `public.events` | `image_url` |
 
 La ventana de 24 h permite completar uploads lentos o en segundo plano sin borrar objetos legítimos aún no referenciados.
+
+Con la path convention determinista, reemplazar una imagen es un UPDATE sobre el mismo objeto y **no** genera huérfanos. Las fuentes de huérfanos que este job cubre son: portadas subidas para un draft que nunca se referenció (fila sin `cover_image_url`) y objetos cuyas filas se borraron sin `on delete cascade` sobre Storage.
 
 #### Mecanismo de ejecución
 
@@ -230,14 +239,14 @@ La Edge Function usa `SUPABASE_SERVICE_ROLE_KEY` para acceder a Storage sin rest
 
 - Un bucket por tipo de contenido permite aplicar límites y políticas independientes sin condicionales en las queries.
 - La conversión a WebP en cliente reduce el peso almacenado y el ancho de banda en descarga sin coste de cómputo en servidor.
-- El UUID generado en cliente permite construir la URL final de forma optimista antes de que el upload complete.
+- El nombre de fichero determinista permite construir la URL final de forma predecible a partir del `uid` / id de la entidad, y reemplazar la imagen por UPDATE sin dejar huérfanos.
 - La calidad del 80 % ofrece una relación peso/calidad adecuada para contenido de tamaño medio en móvil.
 
 **Negativas / limitaciones conocidas:**
 
 - La conversión a WebP en cliente consume CPU y puede tardar 200–500 ms en imágenes grandes en dispositivos de gama baja. Aceptable para v1.
 - Las policies de `post-images` y `event-images` hacen un JOIN con `public.posts` / `public.events` en cada operación de Storage. En tablas grandes puede ser costoso; se mitigará con índices en `posts.author_id` y `events.author_id`.
-- Si se sube más de una imagen por post o evento, todas comparten el mismo `{post_id}/` o `{event_id}/` como prefijo. El UUID garantiza unicidad dentro del directorio.
+- El modelo es de **una imagen (portada) por entidad**. Si en el futuro se necesitara una galería de varias imágenes por post/evento, habría que revisar esta convención (p. ej. `{author_id}/{post_id}/{uuid}.webp`) y su limpieza de huérfanos.
 
 ---
 
