@@ -13,6 +13,11 @@ export default function ManagerPanel() {
         variant="primary"
         onPress={() => router.push('/(app)/(admin)/posts')}
       />
+      <Button
+        label="Gestión de usuarios"
+        variant="secondary"
+        onPress={() => router.push('/(app)/(admin)/users')}
+      />
       <Button label="Mi perfil" variant="secondary" onPress={() => router.push('/profile')} />
     </View>
   );
