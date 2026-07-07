@@ -7,10 +7,16 @@ export type ReactionCounts = Record<ReactionType, number>;
 export const EMPTY_COUNTS: ReactionCounts = { like: 0, dislike: 0, love: 0 };
 
 export async function getMyReaction(postId: string): Promise<ReactionType | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
   const { data, error } = await supabase
     .from('post_reactions')
     .select('type')
     .eq('post_id', postId)
+    .eq('user_id', user.id)
     .maybeSingle();
 
   if (error) throw error;

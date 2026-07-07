@@ -9,7 +9,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(7);
+select plan(8);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -38,6 +38,14 @@ values ('cccccccc-0000-0000-0000-000000000001'::uuid,
         'like');
 
 -- ── SELECT ────────────────────────────────────────────────────────────────────
+
+-- Negative: anon cannot read reactions
+set local role anon;
+select results_eq(
+  $test$ select count(*)::int from public.post_reactions $test$,
+  $expected$ values (0) $expected$,
+  'anon no puede leer reacciones'
+);
 
 -- Positive: staff can read reactions
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
