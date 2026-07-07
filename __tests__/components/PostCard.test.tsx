@@ -20,6 +20,19 @@ jest.mock('lucide-react-native', () => ({
   ExternalLink: () => null,
 }));
 
+jest.mock('@/hooks/usePostReactions', () => ({
+  usePostReactions: () => ({
+    myReaction: null,
+    counts: { like: 0, dislike: 0, love: 0 },
+    loading: false,
+    toggle: jest.fn(),
+  }),
+}));
+
+jest.mock('@/components/reactions', () => ({
+  ReactionPicker: () => null,
+}));
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const POST: PostWithAuthor = {
