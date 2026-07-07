@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react-native';
 
-import UserListScreen from '@/app/(app)/(admin)/users/index';
+import UserListScreen from '@/app/(app)/(tabs)/admin/users/index';
 import { supabase } from '@/lib/supabase';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
