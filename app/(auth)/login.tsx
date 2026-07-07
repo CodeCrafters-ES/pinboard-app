@@ -10,10 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 import { AtSign, Lock } from 'lucide-react-native';
 
 import { signInWithPassword } from '@/lib/auth';
 import { useSession } from '@/hooks/useSession';
+import loginCoverImage from '@/assets/login-cover-image.png';
 
 // ─── Validation ────────────────────────────────────────────────────────────
 
@@ -193,8 +195,13 @@ export default function LoginScreen() {
           </Text>
 
           {/* Decorative sea element */}
-          <View className="mt-5 h-36 rounded-2xl bg-nun-sky overflow-hidden">
-            <View className="absolute inset-0 bg-nun-sand opacity-30" />
+          <View className="mt-5 h-32 rounded-2xl overflow-hidden">
+            <Image
+              source={loginCoverImage}
+              className="w-full h-full"
+              contentFit="cover"
+              transition={200}
+            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

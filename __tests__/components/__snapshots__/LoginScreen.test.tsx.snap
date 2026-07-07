@@ -175,10 +175,37 @@ exports[`LoginScreen renders correctly (snapshot) 1`] = `
           El acceso lo gestiona tu administrador
         </Text>
         <View
-          className="mt-5 h-36 rounded-2xl bg-nun-sky overflow-hidden"
+          className="mt-5 h-32 rounded-2xl overflow-hidden"
         >
-          <View
-            className="absolute inset-0 bg-nun-sand opacity-30"
+          <ViewManagerAdapter_ExpoImage
+            className="w-full h-full"
+            containerViewRef={"[React.ref]"}
+            contentFit="cover"
+            contentPosition={
+              {
+                "left": "50%",
+                "top": "50%",
+              }
+            }
+            nativeViewRef={"[React.ref]"}
+            onError={[Function]}
+            onLoad={[Function]}
+            onLoadStart={[Function]}
+            onProgress={[Function]}
+            placeholder={[]}
+            source={
+              [
+                {
+                  "testUri": "../../../assets/login-cover-image.png",
+                },
+              ]
+            }
+            style={{}}
+            transition={
+              {
+                "duration": 200,
+              }
+            }
           />
         </View>
       </View>
