@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
 import { postSchema, type PostFormData } from '@/lib/validation/postSchema';
@@ -41,18 +42,32 @@ export function PostComposerForm({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [isScraping, setIsScraping] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [scrapeBanner, setScrapeBanner] = useState<string | null>(null);
 
-  const titleTouched    = useRef(Boolean(initialValues?.title));
-  const subtitleTouched = useRef(Boolean(initialValues?.subtitle));
-  const imageTouched    = useRef(false);
-  const scrapeTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleTouched      = useRef(Boolean(initialValues?.title));
+  const subtitleTouched   = useRef(Boolean(initialValues?.subtitle));
+  const imageTouched      = useRef(false);
+  const scrapeTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrapeBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showScrapeBanner(msg: string) {
+    if (scrapeBannerTimer.current) clearTimeout(scrapeBannerTimer.current);
+    setScrapeBanner(msg);
+    scrapeBannerTimer.current = setTimeout(() => setScrapeBanner(null), 4000);
+  }
 
   async function scrapeUrl(url: string) {
     if (!isValidUrl(url)) return;
     setIsScraping(true);
     try {
       const { data, error } = await supabase.functions.invoke('scrape-og', { body: { url } });
-      if (!error && data) {
+      if (error) {
+        if (error instanceof FunctionsHttpError && error.context.status >= 500) {
+          showScrapeBanner('No se pudo obtener la preview del enlace');
+        }
+        return;
+      }
+      if (data) {
         if (!titleTouched.current && data.title)          setTitle(data.title);
         if (!subtitleTouched.current && data.description) setSubtitle(data.description);
         if (!imageTouched.current && data.image)          setCoverImageUrl(data.image);
@@ -92,11 +107,17 @@ export function PostComposerForm({
   }
 
   return (
-    <ScrollView
-      className="flex-1 bg-nun-linen"
-      contentContainerClassName="px-4 py-4 gap-4"
-      keyboardShouldPersistTaps="handled"
-    >
+    <View className="flex-1 bg-nun-linen">
+      {scrapeBanner ? (
+        <View className="px-4 py-2 bg-nun-error">
+          <Text className="text-white text-sm text-center">{scrapeBanner}</Text>
+        </View>
+      ) : null}
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-4 py-4 gap-4"
+        keyboardShouldPersistTaps="handled"
+      >
       {/* Título */}
       <View className="gap-1">
         <Text className="text-xs font-semibold text-nun-muted uppercase tracking-wide">
@@ -252,6 +273,7 @@ export function PostComposerForm({
           <Button label="Eliminar post" variant="danger" onPress={onDelete} />
         ) : null}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
