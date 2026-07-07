@@ -32,9 +32,8 @@ select
   'https://example.com/test'
 from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid;
 
-insert into public.post_reactions (id, post_id, user_id, reaction)
-values ('cccccccc-0000-0000-0000-000000000010'::uuid,
-        'cccccccc-0000-0000-0000-000000000001'::uuid,
+insert into public.post_reactions (post_id, user_id, type)
+values ('cccccccc-0000-0000-0000-000000000001'::uuid,
         'aaaaaaaa-0000-0000-0000-000000000002'::uuid,  -- manager owns this reaction
         'like');
 
@@ -54,7 +53,7 @@ select results_eq(
 -- Positive: staff can insert their own reaction
 select lives_ok(
   $test$
-    insert into public.post_reactions (post_id, user_id, reaction)
+    insert into public.post_reactions (post_id, user_id, type)
     values ('cccccccc-0000-0000-0000-000000000001'::uuid,
             'aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'love')
   $test$,
@@ -64,7 +63,7 @@ select lives_ok(
 -- Negative: staff cannot insert a reaction on behalf of another user
 select throws_ok(
   $test$
-    insert into public.post_reactions (post_id, user_id, reaction)
+    insert into public.post_reactions (post_id, user_id, type)
     values ('cccccccc-0000-0000-0000-000000000001'::uuid,
             'aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'like')
   $test$,
@@ -90,7 +89,8 @@ select results_eq(
   $test$
     with res as (
       delete from public.post_reactions
-      where id = 'cccccccc-0000-0000-0000-000000000010'::uuid
+      where post_id = 'cccccccc-0000-0000-0000-000000000001'::uuid
+        and user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
       returning 1
     ) select count(*)::int from res
   $test$,

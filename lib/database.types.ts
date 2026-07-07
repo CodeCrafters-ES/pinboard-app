@@ -187,23 +187,23 @@ export type Database = {
       post_reactions: {
         Row: {
           created_at: string
-          id: string
           post_id: string
-          reaction: string
+          type: Database["public"]["Enums"]["reaction_type"]
+          updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          id?: string
           post_id: string
-          reaction: string
+          type: Database["public"]["Enums"]["reaction_type"]
+          updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
-          id?: string
           post_id?: string
-          reaction?: string
+          type?: Database["public"]["Enums"]["reaction_type"]
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -396,6 +396,7 @@ export type Database = {
       is_staff: { Args: never; Returns: boolean }
     }
     Enums: {
+      reaction_type: "dislike" | "like" | "love"
       user_role: "staff" | "manager" | "admin"
     }
     CompositeTypes: {
