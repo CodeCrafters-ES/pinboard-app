@@ -8,6 +8,7 @@ export const postSchema = z.object({
     .min(1, 'La URL externa es obligatoria')
     .url('Introduce una URL válida')
     .regex(/^https?:\/\//, 'Debe comenzar con http:// o https://'),
+  cover_image_url: z.string().url().optional().nullable(),
   body: z.string().max(20000, 'Máximo 20.000 caracteres').optional(),
   status: z.enum(['draft', 'published']),
 });

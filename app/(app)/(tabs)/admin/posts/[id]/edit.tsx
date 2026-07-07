@@ -38,6 +38,7 @@ export default function EditPostScreen() {
         title: data.title,
         subtitle: data.subtitle ?? null,
         external_url: data.external_url,
+        cover_image_url: data.cover_image_url ?? null,
         body: data.body ?? null,
         status: data.status,
       },
@@ -95,6 +96,7 @@ export default function EditPostScreen() {
           title: post.title,
           subtitle: post.subtitle ?? undefined,
           external_url: post.external_url,
+          cover_image_url: post.cover_image_url ?? undefined,
           body: post.body ?? undefined,
           status: post.status as PostStatus,
         }}
