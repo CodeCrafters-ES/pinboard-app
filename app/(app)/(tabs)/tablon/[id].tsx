@@ -60,6 +60,7 @@ export default function PostDetailScreen() {
 
   const {
     comments,
+    total: commentsTotal,
     loading: commentsLoading,
     loadingMore: commentsLoadingMore,
     hasMore: commentsHasMore,
@@ -151,7 +152,9 @@ export default function PostDetailScreen() {
             ) : null}
 
             <View className="mt-6 border-t border-nun-parchment pt-5 gap-4">
-              <Text className="text-[17px] font-bold text-nun-dark">Comentarios</Text>
+              <Text className="text-[17px] font-bold text-nun-dark">
+                Comentarios{commentsLoading ? '' : ` (${commentsTotal})`}
+              </Text>
               <CommentComposer onSubmit={addComment} />
               <CommentsList
                 comments={comments}

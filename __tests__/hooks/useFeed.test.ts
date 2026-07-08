@@ -31,6 +31,7 @@ const BASE_POST = {
   updated_at: '2026-06-30T09:00:00Z',
   deleted_at: null,
   author: { name: 'Juan', surname: 'García' },
+  comments_count: 0,
 };
 
 function makePosts(count: number) {

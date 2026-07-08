@@ -84,6 +84,19 @@ export async function listComments({
   return { rows, nextCursor };
 }
 
+export async function getCommentsCount(
+  postId: string,
+  client: SupabaseClient<Database> = supabase,
+): Promise<number> {
+  const { count, error } = await client
+    .from('post_comments')
+    .select('*', { count: 'exact', head: true })
+    .eq('post_id', postId);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function createComment({
   postId,
   body,

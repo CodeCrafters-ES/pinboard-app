@@ -6,9 +6,13 @@ import type { Database, Tables } from '@/lib/database.types';
 type ProfileSnippet = { name: string | null; surname: string | null };
 type PostAuthor = { id: string; name: string | null; surname: string | null; avatar_url: string | null };
 
-export type PostWithAuthor = Tables<'posts'> & { author: ProfileSnippet };
+export type PostWithAuthor = Tables<'posts'> & { author: ProfileSnippet; comments_count: number };
 export type PostDetail = Tables<'posts'> & { author: PostAuthor };
 export type PostCursor = { published_at: string; id: string };
+
+// PostgREST reverse-embed: post_comments(count) yields [{ count }] per post,
+// so the feed's comment aggregate rides on the same query (no N+1).
+type PostRow = Tables<'posts'> & { author: ProfileSnippet; post_comments: { count: number }[] };
 
 export async function listPublishedPosts({
   cursor,
@@ -21,7 +25,7 @@ export async function listPublishedPosts({
 }): Promise<{ rows: PostWithAuthor[]; nextCursor: PostCursor | null }> {
   let query = client
     .from('posts')
-    .select('*, author:profiles!author_id(name, surname)')
+    .select('*, author:profiles!author_id(name, surname), post_comments(count)')
     .eq('status', 'published')
     .is('deleted_at', null)
     .order('published_at', { ascending: false })
@@ -38,7 +42,9 @@ export async function listPublishedPosts({
 
   if (error) throw error;
 
-  const rows = (data ?? []) as PostWithAuthor[];
+  const rows: PostWithAuthor[] = ((data ?? []) as unknown as PostRow[]).map(
+    ({ post_comments, ...post }) => ({ ...post, comments_count: post_comments[0]?.count ?? 0 }),
+  );
   const lastRow = rows[rows.length - 1];
   const nextCursor =
     rows.length === pageSize && lastRow?.published_at
