@@ -27,9 +27,9 @@ Al ser un nombre de fichero fijo (`avatar.webp` / `cover.webp`), sustituir la im
 ## Cómo se sirven
 
 - **`avatars`** (público): la URL pública del objeto (`getPublicUrl`) es accesible sin autenticación — pensado para mostrarse en perfiles y listas sin pasar el JWT.
-- **`post-images`** / **`event-images`** (privados): requieren sesión autenticada. El acceso se resuelve vía RLS sobre `storage.objects` (`SELECT` para cualquier `authenticated`, una vez implementadas las policies en **#150**) o, si se necesita compartir fuera de la app, vía signed URL (`createSignedUrl`).
+- **`post-images`** / **`event-images`** (privados): requieren sesión autenticada. El acceso se resuelve vía RLS sobre `storage.objects` (`SELECT` para cualquier `authenticated`) o, si se necesita compartir fuera de la app, vía signed URL (`createSignedUrl`).
 
-> A día de hoy estos dos buckets existen pero **no tienen policies de escritura** (issue #148 solo define los buckets). Hasta que aterrice #150, cualquier `INSERT`/`UPDATE`/`DELETE` sobre `storage.objects` en estos buckets es denegado por RLS por defecto.
+Las RLS policies de escritura están implementadas en `20260708000000_rls_storage_post_event_images_n02_03_03.sql` (**#150**), siguiendo el SQL canónico de [ADR-002](../../docs/adr/0002-rbac.md#storage-policies--sql-canónico): `SELECT` para cualquier autenticado; `INSERT`/`UPDATE`/`DELETE` para admin (cualquier carpeta) o el propietario de la carpeta (manager sobre la suya); `staff` es solo lectura. Tests en `supabase/tests/rls/rls_storage_post_event_images.sql`.
 
 ## Cómo subir desde cliente
 
