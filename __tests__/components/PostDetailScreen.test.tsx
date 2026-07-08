@@ -27,6 +27,29 @@ jest.mock('@/components/reactions', () => ({
   ReactionPicker: () => null,
 }));
 
+jest.mock('@/hooks/useComments', () => ({
+  useComments: () => ({
+    comments: [],
+    loading: false,
+    loadingMore: false,
+    hasMore: false,
+    error: null,
+    loadMore: jest.fn(),
+    refresh: jest.fn(),
+    add: jest.fn(),
+    remove: jest.fn(),
+  }),
+}));
+
+jest.mock('@/hooks/useSession', () => ({
+  useSession: () => ({ session: null, profile: null }),
+}));
+
+jest.mock('@/components/comments', () => ({
+  CommentComposer: () => null,
+  CommentsList: () => null,
+}));
+
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'post-1' }),
   useRouter: () => ({ back: mockBack }),
