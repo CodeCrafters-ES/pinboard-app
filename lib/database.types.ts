@@ -152,25 +152,22 @@ export type Database = {
       post_ratings: {
         Row: {
           created_at: string
-          id: string
           post_id: string
-          score: number
+          rating: number
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          id?: string
           post_id: string
-          score: number
+          rating: number
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
-          id?: string
           post_id?: string
-          score?: number
+          rating?: number
           updated_at?: string
           user_id?: string
         }
@@ -430,7 +427,7 @@ export type Database = {
       is_staff: { Args: never; Returns: boolean }
     }
     Enums: {
-      reaction_type: "dislike" | "like" | "love"
+      reaction_type: "like" | "dislike" | "love"
       user_role: "staff" | "manager" | "admin"
     }
     CompositeTypes: {
@@ -562,7 +559,9 @@ export const Constants = {
   },
   public: {
     Enums: {
+      reaction_type: ["like", "dislike", "love"],
       user_role: ["staff", "manager", "admin"],
     },
   },
 } as const
+
