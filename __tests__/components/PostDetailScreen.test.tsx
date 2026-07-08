@@ -30,6 +30,7 @@ jest.mock('@/components/reactions', () => ({
 jest.mock('@/hooks/useComments', () => ({
   useComments: () => ({
     comments: [],
+    total: 0,
     loading: false,
     loadingMore: false,
     hasMore: false,

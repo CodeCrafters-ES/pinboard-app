@@ -4,6 +4,7 @@ import { Alert } from 'react-native';
 import {
   createComment,
   deleteComment,
+  getCommentsCount,
   listComments,
   MAX_COMMENT_LENGTH,
   type CommentAuthor,
@@ -17,6 +18,7 @@ type State = {
   comments: CommentWithAuthor[];
   cursor: CommentCursor | null;
   hasMore: boolean;
+  total: number;
   loading: boolean;
   loadingMore: boolean;
   error: string | null;
@@ -26,6 +28,7 @@ const INITIAL: State = {
   comments: [],
   cursor: null,
   hasMore: false,
+  total: 0,
   loading: true,
   loadingMore: false,
   error: null,
@@ -37,11 +40,15 @@ export function useComments(postId: string, currentUser: CommentAuthor | null) {
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
-      const { rows, nextCursor } = await listComments({ postId, pageSize: PAGE_SIZE });
+      const [{ rows, nextCursor }, total] = await Promise.all([
+        listComments({ postId, pageSize: PAGE_SIZE }),
+        getCommentsCount(postId),
+      ]);
       setState({
         comments: rows,
         cursor: nextCursor,
         hasMore: nextCursor !== null,
+        total,
         loading: false,
         loadingMore: false,
         error: null,
@@ -58,13 +65,14 @@ export function useComments(postId: string, currentUser: CommentAuthor | null) {
   useEffect(() => {
     let cancelled = false;
     setState({ ...INITIAL });
-    listComments({ postId, pageSize: PAGE_SIZE })
-      .then(({ rows, nextCursor }) => {
+    Promise.all([listComments({ postId, pageSize: PAGE_SIZE }), getCommentsCount(postId)])
+      .then(([{ rows, nextCursor }, total]) => {
         if (cancelled) return;
         setState({
           comments: rows,
           cursor: nextCursor,
           hasMore: nextCursor !== null,
+          total,
           loading: false,
           loadingMore: false,
           error: null,
@@ -122,7 +130,7 @@ export function useComments(postId: string, currentUser: CommentAuthor | null) {
         updated_at: now,
         author: currentUser,
       };
-      setState((s) => ({ ...s, comments: [optimistic, ...s.comments] }));
+      setState((s) => ({ ...s, comments: [optimistic, ...s.comments], total: s.total + 1 }));
 
       try {
         const created = await createComment({ postId, body: trimmed });
@@ -133,7 +141,11 @@ export function useComments(postId: string, currentUser: CommentAuthor | null) {
           ),
         }));
       } catch {
-        setState((s) => ({ ...s, comments: s.comments.filter((c) => c.id !== tempId) }));
+        setState((s) => ({
+          ...s,
+          comments: s.comments.filter((c) => c.id !== tempId),
+          total: Math.max(0, s.total - 1),
+        }));
         Alert.alert('Error', 'No se pudo publicar el comentario. Inténtalo de nuevo.');
       }
     },
@@ -145,8 +157,13 @@ export function useComments(postId: string, currentUser: CommentAuthor | null) {
     let index = -1;
     setState((s) => {
       index = s.comments.findIndex((c) => c.id === commentId);
+      if (index < 0) return s;
       removed = s.comments[index];
-      return { ...s, comments: s.comments.filter((c) => c.id !== commentId) };
+      return {
+        ...s,
+        comments: s.comments.filter((c) => c.id !== commentId),
+        total: Math.max(0, s.total - 1),
+      };
     });
 
     try {
@@ -156,7 +173,7 @@ export function useComments(postId: string, currentUser: CommentAuthor | null) {
         if (!removed) return s;
         const next = [...s.comments];
         next.splice(index < 0 ? 0 : index, 0, removed);
-        return { ...s, comments: next };
+        return { ...s, comments: next, total: s.total + 1 };
       });
       Alert.alert('Error', 'No se pudo borrar el comentario.');
     }
@@ -164,6 +181,7 @@ export function useComments(postId: string, currentUser: CommentAuthor | null) {
 
   return {
     comments: state.comments,
+    total: state.total,
     loading: state.loading,
     loadingMore: state.loadingMore,
     hasMore: state.hasMore,

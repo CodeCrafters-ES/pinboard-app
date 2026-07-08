@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { useComments } from '@/hooks/useComments';
-import { createComment, deleteComment, listComments } from '@/lib/comments';
+import { createComment, deleteComment, getCommentsCount, listComments } from '@/lib/comments';
 import type { CommentAuthor, CommentWithAuthor } from '@/lib/comments';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
@@ -14,12 +14,14 @@ jest.mock('@/lib/comments', () => ({
   listComments: jest.fn(),
   createComment: jest.fn(),
   deleteComment: jest.fn(),
+  getCommentsCount: jest.fn(),
   MAX_COMMENT_LENGTH: 2000,
 }));
 
 const mockList = listComments as jest.MockedFunction<typeof listComments>;
 const mockCreate = createComment as jest.MockedFunction<typeof createComment>;
 const mockDelete = deleteComment as jest.MockedFunction<typeof deleteComment>;
+const mockCount = getCommentsCount as jest.MockedFunction<typeof getCommentsCount>;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -37,13 +39,17 @@ function comment(id: string, authorId = 'u1'): CommentWithAuthor {
   };
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockCount.mockResolvedValue(0);
+});
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('useComments', () => {
   it('carga los comentarios iniciales al montar', async () => {
     mockList.mockResolvedValueOnce({ rows: [comment('1')], nextCursor: null });
+    mockCount.mockResolvedValueOnce(1);
 
     const { result } = renderHook(() => useComments('p1', AUTHOR));
 
@@ -51,8 +57,10 @@ describe('useComments', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.comments).toHaveLength(1);
+    expect(result.current.total).toBe(1);
     expect(result.current.hasMore).toBe(false);
     expect(mockList).toHaveBeenCalledWith({ postId: 'p1', pageSize: 20 });
+    expect(mockCount).toHaveBeenCalledWith('p1');
   });
 
   it('expone error cuando falla la carga', async () => {
@@ -66,6 +74,7 @@ describe('useComments', () => {
 
   it('add inserta de forma optimista y sustituye por la fila del servidor', async () => {
     mockList.mockResolvedValueOnce({ rows: [], nextCursor: null });
+    mockCount.mockResolvedValueOnce(0);
     mockCreate.mockResolvedValueOnce({
       id: 'server-1',
       post_id: 'p1',
@@ -85,6 +94,7 @@ describe('useComments', () => {
     expect(result.current.comments).toHaveLength(1);
     expect(result.current.comments[0]!.id).toBe('server-1');
     expect(result.current.comments[0]!.author).toEqual(AUTHOR);
+    expect(result.current.total).toBe(1);
     expect(mockCreate).toHaveBeenCalledWith({ postId: 'p1', body: 'hola' });
   });
 
@@ -117,6 +127,7 @@ describe('useComments', () => {
 
   it('remove borra de forma optimista', async () => {
     mockList.mockResolvedValueOnce({ rows: [comment('1'), comment('2')], nextCursor: null });
+    mockCount.mockResolvedValueOnce(2);
     mockDelete.mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() => useComments('p1', AUTHOR));
@@ -127,6 +138,7 @@ describe('useComments', () => {
     });
 
     expect(result.current.comments.map((c) => c.id)).toEqual(['2']);
+    expect(result.current.total).toBe(1);
     expect(mockDelete).toHaveBeenCalledWith('1');
   });
 
