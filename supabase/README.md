@@ -7,6 +7,7 @@ Aquí viven las migraciones SQL, seeds y Edge Functions del proyecto.
 | `migrations/` | Migraciones SQL versionadas. Se aplican con `npx supabase db push`. |
 | `functions/` | Edge Functions en Deno runtime. Se despliegan con `npx supabase functions deploy`. |
 | `tests/` | Tests pgTAP para las migraciones. Se ejecutan con `npx supabase test db`. |
+| `storage/` | Documentación de buckets de Storage (límites, convención de paths, cómo se sirven). Ver [`storage/README.md`](storage/README.md). |
 | `seed.sql` | Datos de desarrollo (usuarios ficticios por rol). Solo para entornos locales. |
 
 ## Modelo de roles (`user_role`)

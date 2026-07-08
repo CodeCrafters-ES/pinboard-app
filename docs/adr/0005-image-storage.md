@@ -196,7 +196,7 @@ Un objeto de Storage se considera **huérfano** cuando han transcurrido más de 
 | Bucket | Tabla de referencia | Columna |
 |---|---|---|
 | `avatars` | `public.profiles` | `avatar_url` |
-| `post-images` | `public.posts` | `image_url` |
+| `post-images` | `public.posts` | `cover_image_url` |
 | `event-images` | `public.events` | `image_url` |
 
 La ventana de 24 h permite completar uploads lentos o en segundo plano sin borrar objetos legítimos aún no referenciados.

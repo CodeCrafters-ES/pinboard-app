@@ -3,6 +3,8 @@ import { Image } from 'expo-image';
 import { ExternalLink } from 'lucide-react-native';
 
 import { Text } from '@/components/ui';
+import { ReactionPicker } from '@/components/reactions';
+import { usePostReactions } from '@/hooks/usePostReactions';
 import type { PostWithAuthor } from '@/lib/supabase/queries/posts';
 
 type Props = {
@@ -27,6 +29,7 @@ function formatRelativeTime(isoDate: string): string {
 }
 
 export function PostCard({ post, onPress }: Props) {
+  const { myReaction, counts, loading, toggle } = usePostReactions(post.id);
   const thumbSource = post.cover_image_url ? { uri: getThumbUrl(post.cover_image_url) } : null;
   const authorName =
     [post.author.name, post.author.surname].filter(Boolean).join(' ') || '—';
@@ -73,6 +76,13 @@ export function PostCard({ post, onPress }: Props) {
           </View>
           <ExternalLink size={14} color="#8C7B6A" />
         </View>
+
+        <ReactionPicker
+          activeReaction={myReaction}
+          counts={counts}
+          onToggle={toggle}
+          loading={loading}
+        />
       </View>
     </Pressable>
   );

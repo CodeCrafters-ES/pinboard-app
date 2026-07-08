@@ -152,25 +152,22 @@ export type Database = {
       post_ratings: {
         Row: {
           created_at: string
-          id: string
           post_id: string
-          score: number
+          rating: number
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          id?: string
           post_id: string
-          score: number
+          rating: number
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
-          id?: string
           post_id?: string
-          score?: number
+          rating?: number
           updated_at?: string
           user_id?: string
         }
@@ -265,6 +262,13 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
         ]
@@ -368,20 +372,47 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "role_audit_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
       profiles_public: {
         Row: {
-          id: string
-          user_id: string
-          full_name: string | null
-          name: string | null
-          surname: string | null
           avatar_url: string | null
-          role: Database["public"]["Enums"]["user_role"]
-          created_at: string
+          created_at: string | null
+          full_name: string | null
+          id: string | null
+          name: string | null
+          role: Database["public"]["Enums"]["user_role"] | null
+          surname: string | null
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: never
+          id?: string | null
+          name?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
+          surname?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: never
+          id?: string | null
+          name?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
+          surname?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -396,7 +427,7 @@ export type Database = {
       is_staff: { Args: never; Returns: boolean }
     }
     Enums: {
-      reaction_type: "dislike" | "like" | "love"
+      reaction_type: "like" | "dislike" | "love"
       user_role: "staff" | "manager" | "admin"
     }
     CompositeTypes: {
@@ -528,7 +559,9 @@ export const Constants = {
   },
   public: {
     Enums: {
+      reaction_type: ["like", "dislike", "love"],
       user_role: ["staff", "manager", "admin"],
     },
   },
 } as const
+

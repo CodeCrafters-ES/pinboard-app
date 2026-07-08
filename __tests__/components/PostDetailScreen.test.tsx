@@ -14,6 +14,19 @@ jest.mock('@/hooks/usePostDetail', () => ({
   usePostDetail: () => mockUsePostDetail(),
 }));
 
+jest.mock('@/hooks/usePostReactions', () => ({
+  usePostReactions: () => ({
+    myReaction: null,
+    counts: { like: 0, dislike: 0, love: 0 },
+    loading: false,
+    toggle: jest.fn(),
+  }),
+}));
+
+jest.mock('@/components/reactions', () => ({
+  ReactionPicker: () => null,
+}));
+
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'post-1' }),
   useRouter: () => ({ back: mockBack }),

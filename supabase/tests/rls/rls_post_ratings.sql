@@ -33,9 +33,8 @@ select
   'https://example.com/test'
 from public.profiles p where p.user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid;
 
-insert into public.post_ratings (id, post_id, user_id, score)
-values ('dddddddd-0000-0000-0000-000000000010'::uuid,
-        'dddddddd-0000-0000-0000-000000000001'::uuid,
+insert into public.post_ratings (post_id, user_id, rating)
+values ('dddddddd-0000-0000-0000-000000000001'::uuid,
         'aaaaaaaa-0000-0000-0000-000000000002'::uuid,  -- manager owns this rating
         4);
 
@@ -55,7 +54,7 @@ select results_eq(
 -- Positive: staff can insert their own rating
 select lives_ok(
   $test$
-    insert into public.post_ratings (post_id, user_id, score)
+    insert into public.post_ratings (post_id, user_id, rating)
     values ('dddddddd-0000-0000-0000-000000000001'::uuid,
             'aaaaaaaa-0000-0000-0000-000000000003'::uuid, 3)
   $test$,
@@ -65,7 +64,7 @@ select lives_ok(
 -- Negative: staff cannot insert a rating on behalf of another user
 select throws_ok(
   $test$
-    insert into public.post_ratings (post_id, user_id, score)
+    insert into public.post_ratings (post_id, user_id, rating)
     values ('dddddddd-0000-0000-0000-000000000001'::uuid,
             'aaaaaaaa-0000-0000-0000-000000000001'::uuid, 5)
   $test$,
@@ -79,19 +78,20 @@ select throws_ok(
 -- Positive: staff can update their own rating
 select lives_ok(
   $test$
-    update public.post_ratings set score = 5
+    update public.post_ratings set rating = 5
     where post_id = 'dddddddd-0000-0000-0000-000000000001'::uuid
       and user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
   $test$,
   'staff puede actualizar su propia valoración'
 );
 
--- Negative: staff cannot update another user's rating
+-- Negative: staff cannot update another user's rating (manager owns this one)
 select results_eq(
   $test$
     with res as (
-      update public.post_ratings set score = 1
-      where id = 'dddddddd-0000-0000-0000-000000000010'::uuid
+      update public.post_ratings set rating = 1
+      where post_id = 'dddddddd-0000-0000-0000-000000000001'::uuid
+        and user_id = 'aaaaaaaa-0000-0000-0000-000000000002'::uuid
       returning 1
     ) select count(*)::int from res
   $test$,
