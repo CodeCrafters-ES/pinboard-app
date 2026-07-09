@@ -61,6 +61,11 @@ jest.mock('@/components/comments', () => ({
   CommentsList: () => null,
 }));
 
+const mockTrackLinkClick = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/engagement', () => ({
+  trackLinkClick: (...args: unknown[]) => mockTrackLinkClick(...args),
+}));
+
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'post-1' }),
   useRouter: () => ({ back: mockBack }),
@@ -145,7 +150,19 @@ describe('PostDetailScreen', () => {
     expect(screen.queryByTestId('markdown-body')).toBeNull();
   });
 
-  it('opens external_url when "Leer noticia" is tapped', () => {
+  it('tracks the click and opens external_url when "Leer noticia" is tapped', () => {
+    const openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as never);
+    mockUsePostDetail.mockReturnValue({ post: POST, loading: false, error: null });
+
+    render(<PostDetailScreen />);
+    fireEvent.press(screen.getByLabelText('Leer noticia →'));
+
+    expect(mockTrackLinkClick).toHaveBeenCalledWith('post-1');
+    expect(openURLSpy).toHaveBeenCalledWith('https://example.com/noticia');
+  });
+
+  it('still opens external_url even if tracking rejects (fire-and-no-wait)', () => {
+    mockTrackLinkClick.mockRejectedValueOnce(new Error('network'));
     const openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as never);
     mockUsePostDetail.mockReturnValue({ post: POST, loading: false, error: null });
 
