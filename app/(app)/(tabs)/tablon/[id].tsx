@@ -9,6 +9,7 @@ import { usePostReactions } from '@/hooks/usePostReactions';
 import { usePostRating } from '@/hooks/usePostRating';
 import { useComments } from '@/hooks/useComments';
 import { useSession } from '@/hooks/useSession';
+import { trackLinkClick } from '@/lib/engagement';
 import { Button, StarRating, Text } from '@/components/ui';
 import { ReactionPicker } from '@/components/reactions';
 import { CommentComposer, CommentsList } from '@/components/comments';
@@ -19,6 +20,12 @@ function getCoverUrl(url: string): string {
     url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') +
     '?width=1080&quality=85'
   );
+}
+
+// Host only, without www. — regex-based so it doesn't rely on RN's partial URL impl.
+function getDomain(url: string): string {
+  const match = url.match(/^https?:\/\/([^/]+)/i);
+  return match ? match[1]!.replace(/^www\./, '') : url;
 }
 
 function formatRelativeTime(isoDate: string): string {
@@ -154,12 +161,22 @@ export default function PostDetailScreen() {
               disabled={ratingLoading}
             />
 
-            <Button
-              label="Leer noticia →"
-              variant="primary"
-              onPress={() => Linking.openURL(post.external_url)}
-              className="mt-1"
-            />
+            <View className="mt-1 gap-1">
+              <Button
+                label="Leer noticia →"
+                variant="primary"
+                accessibilityRole="link"
+                onPress={() => {
+                  // Fire-and-no-wait: never block opening the link, and swallow
+                  // failures — the offline retry queue lands in I-F-N03-04-02.
+                  trackLinkClick(post.id).catch(() => {});
+                  Linking.openURL(post.external_url);
+                }}
+              />
+              <Text className="text-xs text-nun-muted self-center">
+                {getDomain(post.external_url)}
+              </Text>
+            </View>
 
             {post.body ? (
               <View className="mt-3">
