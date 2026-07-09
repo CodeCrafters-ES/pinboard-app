@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Linking, ScrollView, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -6,8 +7,12 @@ import Markdown from 'react-native-markdown-display';
 import { usePostDetail } from '@/hooks/usePostDetail';
 import { usePostReactions } from '@/hooks/usePostReactions';
 import { usePostRating } from '@/hooks/usePostRating';
+import { useComments } from '@/hooks/useComments';
+import { useSession } from '@/hooks/useSession';
 import { Button, StarRating, Text } from '@/components/ui';
 import { ReactionPicker } from '@/components/reactions';
+import { CommentComposer, CommentsList } from '@/components/comments';
+import type { CommentAuthor } from '@/lib/comments';
 
 function getCoverUrl(url: string): string {
   return (
@@ -50,6 +55,27 @@ export default function PostDetailScreen() {
     loading: ratingLoading,
     rate,
   } = usePostRating(id ?? '');
+  const { session, profile } = useSession();
+
+  const currentUser = useMemo<CommentAuthor | null>(() => {
+    if (!session) return null;
+    return {
+      user_id: session.userId,
+      full_name: [profile?.name, profile?.surname].filter(Boolean).join(' ') || null,
+      avatar_url: profile?.avatar_url ?? null,
+    };
+  }, [session, profile?.name, profile?.surname, profile?.avatar_url]);
+
+  const {
+    comments,
+    total: commentsTotal,
+    loading: commentsLoading,
+    loadingMore: commentsLoadingMore,
+    hasMore: commentsHasMore,
+    loadMore: loadMoreComments,
+    add: addComment,
+    remove: removeComment,
+  } = useComments(id ?? '', currentUser);
 
   // Punto de inserción para el futuro tracker de engagement (EPIC-N04, ADR-001):
   // aquí se registrará el evento `view` una vez cargado `post`. No implementado en este issue.
@@ -68,7 +94,7 @@ export default function PostDetailScreen() {
       ) : null}
 
       {!loading && post ? (
-        <ScrollView contentContainerClassName="pb-10">
+        <ScrollView contentContainerClassName="pb-10" keyboardShouldPersistTaps="handled">
           {post.cover_image_url ? (
             <Image
               source={{ uri: getCoverUrl(post.cover_image_url) }}
@@ -140,6 +166,23 @@ export default function PostDetailScreen() {
                 <Markdown>{post.body}</Markdown>
               </View>
             ) : null}
+
+            <View className="mt-6 border-t border-nun-parchment pt-5 gap-4">
+              <Text className="text-[17px] font-bold text-nun-dark">
+                Comentarios{commentsLoading ? '' : ` (${commentsTotal})`}
+              </Text>
+              <CommentComposer onSubmit={addComment} />
+              <CommentsList
+                comments={comments}
+                currentUserId={session?.userId ?? null}
+                isAdmin={session?.role === 'admin'}
+                loading={commentsLoading}
+                hasMore={commentsHasMore}
+                loadingMore={commentsLoadingMore}
+                onLoadMore={loadMoreComments}
+                onDelete={removeComment}
+              />
+            </View>
           </View>
         </ScrollView>
       ) : null}

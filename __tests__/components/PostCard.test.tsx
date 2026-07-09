@@ -18,6 +18,7 @@ jest.mock('expo-image', () => {
 
 jest.mock('lucide-react-native', () => ({
   ExternalLink: () => null,
+  MessageCircle: () => null,
 }));
 
 jest.mock('@/hooks/usePostReactions', () => ({
@@ -49,6 +50,7 @@ const POST: PostWithAuthor = {
   updated_at: '2026-06-30T09:00:00Z',
   deleted_at: null,
   author: { name: 'Juan', surname: 'García' },
+  comments_count: 4,
 };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

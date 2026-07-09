@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
-import { ExternalLink } from 'lucide-react-native';
+import { ExternalLink, MessageCircle } from 'lucide-react-native';
 
 import { Text } from '@/components/ui';
 import { ReactionPicker } from '@/components/reactions';
@@ -74,7 +74,11 @@ export function PostCard({ post, onPress }: Props) {
               </>
             ) : null}
           </View>
-          <ExternalLink size={14} color="#8C7B6A" />
+          <View className="flex-row items-center gap-1">
+            <MessageCircle size={14} color="#8C7B6A" />
+            <Text className="text-xs text-nun-muted">{post.comments_count}</Text>
+            <ExternalLink size={14} color="#8C7B6A" className="ml-2" />
+          </View>
         </View>
 
         <ReactionPicker
