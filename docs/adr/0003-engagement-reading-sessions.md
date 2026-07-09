@@ -51,6 +51,7 @@ create table public.engagement_sessions (
 ### FK a `profiles(id)`
 
 `user_id` referencia `public.profiles(id)` (no `auth.users`). Consecuencia: **almacena `profiles.id`, no `auth.uid()`**. Implicaciones para las issues consumidoras:
+
 - **Edge Function `track-engagement` (#179):** debe resolver `profiles.id` a partir de `auth.uid()` antes de escribir.
 - **Policies RLS (EPIC-S00 / I-F-S00-04-05):** la comprobación de propiedad es `user_id in (select id from public.profiles where user_id = auth.uid())`, no el patrón directo `user_id = auth.uid()` usado en otras tablas.
 
@@ -61,11 +62,13 @@ Igual que ADR-001: **solo** la Edge Function `track-engagement` (con `service_ro
 ## Consecuencias
 
 **Positivas:**
+
 - Captura granular del comportamiento de lectura (tiempo + scroll) que ADR-001 descartaba.
 - El `session_id` como PK hace el UPSERT idempotente por sesión (reintentos de la cola offline no duplican).
 - Alinea el servidor con el cliente ya mergeado (#173).
 
 **Negativas / limitaciones:**
+
 - Varias filas por (usuario, post) → el dashboard debe agregar (`count(distinct user_id)`, `avg`, etc.).
 - La FK a `profiles(id)` rompe el patrón `user_id = auth.uid()` y obliga a mapear en Edge Function y policies.
 - Reemplazar la tabla de ADR-001 deja temporalmente incoherente la Edge Function de `link_clicked` (N03-04) hasta #179.
