@@ -1,8 +1,9 @@
 -- RLS tests: post_ratings table
--- Policies: post_ratings_select_authenticated, post_ratings_insert_self,
---           post_ratings_update_self
--- Note: no DELETE policy exists by design — ratings are updated, never deleted.
--- refs: docs/adr/0002-rbac.md
+-- Policies: post_ratings_select_authenticated, post_ratings_insert_own,
+--           post_ratings_update_own
+-- Note: no DELETE policy exists by design — ratings are updated, never deleted;
+-- DELETE is also not granted to `authenticated`, so it is rejected outright.
+-- refs: docs/adr/0002-rbac.md, migration 20260709000000_rls_post_ratings_n03_03_03.sql
 --
 -- Seed UUIDs (supabase/seed.sql):
 --   admin:   aaaaaaaa-0000-0000-0000-000000000001
@@ -10,7 +11,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(5);
+select plan(6);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -97,6 +98,20 @@ select results_eq(
   $test$,
   $expected$ values (0) $expected$,
   'staff no puede modificar la valoración de otro usuario'
+);
+
+-- ── DELETE ────────────────────────────────────────────────────────────────────
+
+-- Negative: no DELETE policy and no DELETE grant → any delete is rejected
+select throws_ok(
+  $test$
+    delete from public.post_ratings
+    where post_id = 'dddddddd-0000-0000-0000-000000000001'::uuid
+      and user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
+  $test$,
+  '42501',
+  null,
+  'staff no puede borrar ninguna valoración'
 );
 
 select * from finish();
