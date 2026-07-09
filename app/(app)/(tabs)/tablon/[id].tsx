@@ -9,7 +9,8 @@ import { usePostReactions } from '@/hooks/usePostReactions';
 import { usePostRating } from '@/hooks/usePostRating';
 import { useComments } from '@/hooks/useComments';
 import { useSession } from '@/hooks/useSession';
-import { trackLinkClick } from '@/lib/engagement';
+import { usePostEngagement } from '@/hooks/usePostEngagement';
+import { createEngagementSink, trackLinkClick } from '@/lib/engagement';
 import { Button, StarRating, Text } from '@/components/ui';
 import { ReactionPicker } from '@/components/reactions';
 import { CommentComposer, CommentsList } from '@/components/comments';
@@ -84,8 +85,12 @@ export default function PostDetailScreen() {
     remove: removeComment,
   } = useComments(id ?? '', currentUser);
 
-  // Punto de inserción para el futuro tracker de engagement (EPIC-N04, ADR-001):
-  // aquí se registrará el evento `view` una vez cargado `post`. No implementado en este issue.
+  // Engagement (EPIC-N04, ADR-001): un sink por apertura de pantalla que encola los
+  // heartbeats hacia la Edge Function track-engagement. El evento `init` (fila `viewed`)
+  // se emite al montar; `onScroll` alimenta el scroll monótono al ScrollView del post.
+  // El sink se auto-reinicia en cada `init`, así que no depende de `id`.
+  const onEngagementEvent = useMemo(() => createEngagementSink(), []);
+  const { onScroll } = usePostEngagement(id ?? '', { onEvent: onEngagementEvent });
 
   return (
     <View className="flex-1 bg-nun-white">
@@ -101,7 +106,12 @@ export default function PostDetailScreen() {
       ) : null}
 
       {!loading && post ? (
-        <ScrollView contentContainerClassName="pb-10" keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerClassName="pb-10"
+          keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+        >
           {post.cover_image_url ? (
             <Image
               source={{ uri: getCoverUrl(post.cover_image_url) }}
