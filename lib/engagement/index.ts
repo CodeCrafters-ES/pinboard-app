@@ -1,5 +1,9 @@
 import { supabase } from '@/lib/supabase';
 
+export { enqueue, flush, size, type EngagementPayload } from './queue';
+export { createEngagementSink } from './sink';
+export { startEngagementSync } from './sync';
+
 // Records that the user opened a post's external link. Writes go through the
 // track-engagement Edge Function because RLS blocks direct client writes to
 // engagement_sessions; the function derives user_id from the JWT and dedups by
