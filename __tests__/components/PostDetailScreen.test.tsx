@@ -64,6 +64,11 @@ jest.mock('@/components/comments', () => ({
 const mockTrackLinkClick = jest.fn().mockResolvedValue(undefined);
 jest.mock('@/lib/engagement', () => ({
   trackLinkClick: (...args: unknown[]) => mockTrackLinkClick(...args),
+  createEngagementSink: () => jest.fn(),
+}));
+
+jest.mock('@/hooks/usePostEngagement', () => ({
+  usePostEngagement: () => ({ onScroll: jest.fn(), sessionId: 'sess-test' }),
 }));
 
 jest.mock('expo-router', () => ({
