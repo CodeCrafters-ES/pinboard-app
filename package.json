@@ -27,6 +27,7 @@
     "@supabase/supabase-js": "^2.108.1",
     "expo": "~52.0.0",
     "expo-constants": "~17.0.8",
+    "expo-crypto": "~14.0.2",
     "expo-image": "~2.0.0",
     "expo-image-manipulator": "~13.0.0",
     "expo-image-picker": "~16.0.6",
