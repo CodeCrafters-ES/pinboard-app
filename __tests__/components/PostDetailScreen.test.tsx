@@ -23,6 +23,16 @@ jest.mock('@/hooks/usePostReactions', () => ({
   }),
 }));
 
+jest.mock('@/hooks/usePostRating', () => ({
+  usePostRating: () => ({
+    myRating: null,
+    average: 0,
+    count: 0,
+    loading: false,
+    rate: jest.fn(),
+  }),
+}));
+
 jest.mock('@/components/reactions', () => ({
   ReactionPicker: () => null,
 }));

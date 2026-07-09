@@ -6,9 +6,10 @@ import Markdown from 'react-native-markdown-display';
 
 import { usePostDetail } from '@/hooks/usePostDetail';
 import { usePostReactions } from '@/hooks/usePostReactions';
+import { usePostRating } from '@/hooks/usePostRating';
 import { useComments } from '@/hooks/useComments';
 import { useSession } from '@/hooks/useSession';
-import { Button, Text } from '@/components/ui';
+import { Button, StarRating, Text } from '@/components/ui';
 import { ReactionPicker } from '@/components/reactions';
 import { CommentComposer, CommentsList } from '@/components/comments';
 import type { CommentAuthor } from '@/lib/comments';
@@ -47,6 +48,13 @@ export default function PostDetailScreen() {
   const router = useRouter();
   const { post, loading, error } = usePostDetail(id);
   const { myReaction, counts, loading: reactionsLoading, toggle } = usePostReactions(id ?? '');
+  const {
+    myRating,
+    average: ratingAverage,
+    count: ratingCount,
+    loading: ratingLoading,
+    rate,
+  } = usePostRating(id ?? '');
   const { session, profile } = useSession();
 
   const currentUser = useMemo<CommentAuthor | null>(() => {
@@ -136,6 +144,14 @@ export default function PostDetailScreen() {
               counts={counts}
               onToggle={toggle}
               loading={reactionsLoading}
+            />
+
+            <StarRating
+              value={myRating}
+              average={ratingAverage}
+              count={ratingCount}
+              onRate={rate}
+              disabled={ratingLoading}
             />
 
             <Button
