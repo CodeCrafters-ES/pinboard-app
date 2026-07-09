@@ -87,6 +87,15 @@ exports[`PostCard matches snapshot 1`] = `
       <View
         className="flex-row items-center gap-1"
       >
+        <View
+          className="flex-row items-center gap-1 mr-2"
+        >
+          <Text
+            className="text-[15px] text-nun-dark font-normal text-xs text-nun-muted"
+          >
+            4.3
+          </Text>
+        </View>
         <Text
           className="text-[15px] text-nun-dark font-normal text-xs text-nun-muted"
         >

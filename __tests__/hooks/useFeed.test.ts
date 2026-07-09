@@ -32,6 +32,8 @@ const BASE_POST = {
   deleted_at: null,
   author: { name: 'Juan', surname: 'García' },
   comments_count: 0,
+  rating_average: 0,
+  rating_count: 0,
 };
 
 function makePosts(count: number) {
