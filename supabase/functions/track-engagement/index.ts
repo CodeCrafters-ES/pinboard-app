@@ -1,19 +1,26 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { z } from 'https://esm.sh/zod@3.23.8'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const VALID_STATUSES = ['active', 'idle', 'closed'] as const
-type SessionStatus = (typeof VALID_STATUSES)[number]
-
-interface RequestBody {
-  post_id: string
-  link_clicked?: boolean
-  status?: SessionStatus
-  device?: string
-}
+// Contrato de entrada = LOTE (array). El cliente (lib/engagement/queue.ts) envía
+// JSON.stringify(batch). Aceptamos tanto un array top-level como { events: [...] };
+// esto arregla el bug por el que la cola offline descartaba todo en silencio.
+const Event = z.object({
+  session_id: z.string().uuid(),
+  post_id: z.string().uuid(),
+  link_clicked: z.boolean().optional(),
+  focused_seconds_delta: z.number().int().min(0).max(3600).optional(),
+  max_scroll_pct: z.number().min(0).max(1).optional(),
+  client_ts: z.string().datetime().optional(),
+})
+const Body = z.union([
+  z.array(Event).min(1).max(50),
+  z.object({ events: z.array(Event).min(1).max(50) }).transform((b) => b.events),
+])
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -29,57 +36,55 @@ Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return json({ error: 'Missing Authorization header' }, 401)
 
-  // Verify the caller's JWT using the anon client (never trust the payload alone)
+  // Verify the caller's JWT — user.id (auth.uid()) is the only source of user_id.
   const userClient = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_ANON_KEY')!,
     { global: { headers: { Authorization: authHeader } } }
   )
-
   const { data: { user }, error: authError } = await userClient.auth.getUser()
   if (authError || !user) return json({ error: 'Unauthorized' }, 401)
 
-  let body: RequestBody
+  let raw: unknown
   try {
-    body = await req.json()
+    raw = await req.json()
   } catch {
     return json({ error: 'Invalid JSON body' }, 400)
   }
 
-  const { post_id, link_clicked, status, device } = body
-
-  if (!post_id || typeof post_id !== 'string') {
-    return json({ error: 'post_id (string) is required' }, 400)
+  const parsed = Body.safeParse(raw)
+  if (!parsed.success) {
+    return json({ error: 'Invalid payload', issues: parsed.error.issues }, 400)
   }
-  if (status !== undefined && !(VALID_STATUSES as readonly string[]).includes(status)) {
-    return json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` }, 400)
-  }
+  const events = parsed.data
 
-  // Service-role client bypasses RLS — the only path allowed to write engagement_sessions
+  // service_role bypasses RLS — the only path allowed to write engagement_sessions.
+  // The RPC does the atomic per-post aggregation + append-only UPSERT.
   const svc = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
+  const { data, error } = await svc.rpc('apply_engagement_events', {
+    p_user_id: user.id,
+    p_events: events,
+  })
 
-  // Build the upsert payload. link_clicked is append-only: never revert true → false.
-  const payload: Record<string, unknown> = {
-    user_id: user.id,
-    post_id,
-    last_seen_at: new Date().toISOString(),
+  if (error) {
+    // FK (post_id inexistente) o CHECK → payload inválido; el resto es fallo interno.
+    const badRequest = error.code === '23503' || error.code === '23514'
+    console.error('track-engagement rpc error', { code: error.code, message: error.message })
+    return json({ error: error.message }, badRequest ? 400 : 500)
   }
-  if (link_clicked === true) payload.link_clicked = true
-  if (status !== undefined) payload.status = status
-  if (device !== undefined) payload.device = device
 
-  // UNIQUE(user_id, post_id) makes this idempotent: retries from the offline queue
-  // update last_seen_at in-place without creating duplicate rows.
-  const { data, error } = await svc
-    .from('engagement_sessions')
-    .upsert(payload, { onConflict: 'user_id,post_id', ignoreDuplicates: false })
-    .select()
-    .single()
+  // Logs estructurados por sesión afectada.
+  for (const row of data ?? []) {
+    console.log('track-engagement', {
+      user_id: user.id,
+      post_id: row.post_id,
+      link_clicked: row.link_clicked,
+      new_status: row.status,
+    })
+  }
 
-  if (error) return json({ error: error.message }, 500)
-
-  return json({ data })
+  return json({ ok: true, sessions: data })
 })
