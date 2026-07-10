@@ -1,36 +1,40 @@
 import { trackLinkClick } from '@/lib/engagement';
+import { enqueue } from '@/lib/engagement/queue';
 import { supabase } from '@/lib/supabase';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
+
+jest.mock('@/lib/engagement/queue', () => ({
+  enqueue: jest.fn().mockResolvedValue(undefined),
+}));
 
 jest.mock('@/lib/supabase', () => ({
   supabase: { functions: { invoke: jest.fn() } },
 }));
 
-jest.mock('expo-crypto', () => ({ randomUUID: jest.fn(() => 'sess-fixed') }));
-
-const mockInvoke = supabase.functions.invoke as jest.MockedFunction<
-  typeof supabase.functions.invoke
->;
+const mockEnqueue = enqueue as jest.MockedFunction<typeof enqueue>;
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 beforeEach(() => jest.clearAllMocks());
 
 describe('trackLinkClick', () => {
-  it('invokes track-engagement with a one-event batch (session_id + link_clicked)', async () => {
-    mockInvoke.mockResolvedValueOnce({ data: { ok: true }, error: null });
+  it('enqueues a link_clicked event into the shared engagement queue', async () => {
+    await trackLinkClick('post-1', 'sess-1');
 
-    await trackLinkClick('post-1');
-
-    expect(mockInvoke).toHaveBeenCalledWith('track-engagement', {
-      body: [{ session_id: 'sess-fixed', post_id: 'post-1', link_clicked: true }],
+    expect(mockEnqueue).toHaveBeenCalledWith({
+      session_id: 'sess-1',
+      post_id: 'post-1',
+      link_clicked: true,
+      focused_seconds_delta: 0,
+      max_scroll_pct: 0,
+      client_ts: expect.any(String),
     });
   });
 
-  it('throws when the edge function returns an error', async () => {
-    mockInvoke.mockResolvedValueOnce({ data: null, error: new Error('boom') });
+  it('does not call the edge function directly (goes through the offline queue)', async () => {
+    await trackLinkClick('post-1', 'sess-1');
 
-    await expect(trackLinkClick('post-1')).rejects.toThrow('boom');
+    expect(supabase.functions.invoke).not.toHaveBeenCalled();
   });
 });
