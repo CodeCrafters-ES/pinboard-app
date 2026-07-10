@@ -1,11 +1,9 @@
 # ADR-001 — Modelo de engagement: viewed / engaged / clicked
 
-**Estado:** Superseded por [ADR-0003](0003-engagement-reading-sessions.md) (2026-07-09)
+**Estado:** Aceptado
 **Fecha:** 2026-06-26
 **Autores:** Alex Zapata
 **Issues:** [EPIC-A00 #45](https://github.com/CodeCrafters-ES/pinboard-app/issues/45) · [I-F-A00-01-01 #47](https://github.com/CodeCrafters-ES/pinboard-app/issues/47) · [I-F-A00-01-02 #48](https://github.com/CodeCrafters-ES/pinboard-app/issues/48)
-
-> **Nota (2026-07-09):** Este ADR queda **superado por [ADR-0003](0003-engagement-reading-sessions.md)**, que sustituye el modelo `(user_id, post_id)` / `viewed·engaged·clicked` por uno **por sesión de lectura** (`session_id`, `focused_seconds`, `max_scroll_pct`, estados `viewed → skimmed → read`). Se conserva por contexto histórico.
 
 ---
 

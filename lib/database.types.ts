@@ -36,33 +36,33 @@ export type Database = {
     Tables: {
       engagement_sessions: {
         Row: {
-          focused_seconds: number
-          max_scroll_pct: number
+          device: string | null
+          id: string
+          last_seen_at: string
+          link_clicked: boolean
           post_id: string
-          session_id: string
           started_at: string
-          state: Database["public"]["Enums"]["engagement_state"]
-          updated_at: string
+          status: string
           user_id: string
         }
         Insert: {
-          focused_seconds?: number
-          max_scroll_pct?: number
+          device?: string | null
+          id?: string
+          last_seen_at?: string
+          link_clicked?: boolean
           post_id: string
-          session_id: string
           started_at?: string
-          state?: Database["public"]["Enums"]["engagement_state"]
-          updated_at?: string
+          status?: string
           user_id: string
         }
         Update: {
-          focused_seconds?: number
-          max_scroll_pct?: number
+          device?: string | null
+          id?: string
+          last_seen_at?: string
+          link_clicked?: boolean
           post_id?: string
-          session_id?: string
           started_at?: string
-          state?: Database["public"]["Enums"]["engagement_state"]
-          updated_at?: string
+          status?: string
           user_id?: string
         }
         Relationships: [
@@ -71,13 +71,6 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "engagement_sessions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -434,7 +427,6 @@ export type Database = {
       is_staff: { Args: never; Returns: boolean }
     }
     Enums: {
-      engagement_state: "viewed" | "skimmed" | "read"
       reaction_type: "like" | "dislike" | "love"
       user_role: "staff" | "manager" | "admin"
     }
@@ -567,7 +559,6 @@ export const Constants = {
   },
   public: {
     Enums: {
-      engagement_state: ["viewed", "skimmed", "read"],
       reaction_type: ["like", "dislike", "love"],
       user_role: ["staff", "manager", "admin"],
     },
