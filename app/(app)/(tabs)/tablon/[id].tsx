@@ -90,7 +90,7 @@ export default function PostDetailScreen() {
   // se emite al montar; `onScroll` alimenta el scroll monótono al ScrollView del post.
   // El sink se auto-reinicia en cada `init`, así que no depende de `id`.
   const onEngagementEvent = useMemo(() => createEngagementSink(), []);
-  const { onScroll } = usePostEngagement(id ?? '', { onEvent: onEngagementEvent });
+  const { onScroll, sessionId } = usePostEngagement(id ?? '', { onEvent: onEngagementEvent });
 
   return (
     <View className="flex-1 bg-nun-white">
@@ -177,9 +177,9 @@ export default function PostDetailScreen() {
                 variant="primary"
                 accessibilityRole="link"
                 onPress={() => {
-                  // Fire-and-no-wait: never block opening the link, and swallow
-                  // failures — the offline retry queue lands in I-F-N03-04-02.
-                  trackLinkClick(post.id).catch(() => {});
+                  // Enqueue before opening: the browser opens regardless, and the
+                  // click survives offline in the shared queue (retried on reconnect).
+                  trackLinkClick(post.id, sessionId).catch(() => {});
                   Linking.openURL(post.external_url);
                 }}
               />
