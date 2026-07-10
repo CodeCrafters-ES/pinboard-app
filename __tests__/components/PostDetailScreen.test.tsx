@@ -162,7 +162,7 @@ describe('PostDetailScreen', () => {
     render(<PostDetailScreen />);
     fireEvent.press(screen.getByLabelText('Leer noticia →'));
 
-    expect(mockTrackLinkClick).toHaveBeenCalledWith('post-1');
+    expect(mockTrackLinkClick).toHaveBeenCalledWith('post-1', 'sess-test');
     expect(openURLSpy).toHaveBeenCalledWith('https://example.com/noticia');
   });
 

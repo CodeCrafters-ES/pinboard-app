@@ -20,6 +20,9 @@ export type EngagementPayload = {
   focused_seconds_delta: number;
   max_scroll_pct: number;
   client_ts: string;
+  // Métrica principal (ADR-001). Opcional: los heartbeats no la traen; el clic en
+  // el enlace externo la encola como true. Append-only en el servidor.
+  link_clicked?: boolean;
 };
 
 function extra<T = string>(key: 'supabaseUrl' | 'supabaseAnonKey'): T | undefined {

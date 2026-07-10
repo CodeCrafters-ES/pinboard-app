@@ -1,19 +1,21 @@
-import * as Crypto from 'expo-crypto';
-
-import { supabase } from '@/lib/supabase';
+import { enqueue } from './queue';
 
 export { enqueue, flush, size, type EngagementPayload } from './queue';
 export { createEngagementSink } from './sink';
 export { startEngagementSync } from './sync';
 
-// Records that the user opened a post's external link. Writes go through the
-// track-engagement Edge Function because RLS blocks direct client writes to
-// engagement_sessions; the function derives user_id from the JWT and dedups by
-// (user_id, post_id). link_clicked is append-only server-side (never true → false).
-// The function expects a batch (array); a single click is a one-element batch.
-export async function trackLinkClick(postId: string): Promise<void> {
-  const { error } = await supabase.functions.invoke('track-engagement', {
-    body: [{ session_id: Crypto.randomUUID(), post_id: postId, link_clicked: true }],
+// Records that the user opened a post's external link. The click is ENQUEUED into
+// the shared engagement queue (AsyncStorage @engagement/queue) instead of hitting
+// track-engagement directly, so a click made offline survives and is retried on
+// reconnect (startEngagementSync → flush). It rides the same batch (array) as the
+// rest of the engagement events. link_clicked is append-only server-side.
+export function trackLinkClick(postId: string, sessionId: string): Promise<void> {
+  return enqueue({
+    session_id: sessionId,
+    post_id: postId,
+    link_clicked: true,
+    focused_seconds_delta: 0,
+    max_scroll_pct: 0,
+    client_ts: new Date().toISOString(),
   });
-  if (error) throw error;
 }
