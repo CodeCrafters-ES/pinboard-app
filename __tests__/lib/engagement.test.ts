@@ -7,6 +7,8 @@ jest.mock('@/lib/supabase', () => ({
   supabase: { functions: { invoke: jest.fn() } },
 }));
 
+jest.mock('expo-crypto', () => ({ randomUUID: jest.fn(() => 'sess-fixed') }));
+
 const mockInvoke = supabase.functions.invoke as jest.MockedFunction<
   typeof supabase.functions.invoke
 >;
@@ -16,13 +18,13 @@ const mockInvoke = supabase.functions.invoke as jest.MockedFunction<
 beforeEach(() => jest.clearAllMocks());
 
 describe('trackLinkClick', () => {
-  it('invokes track-engagement with post_id and link_clicked', async () => {
-    mockInvoke.mockResolvedValueOnce({ data: { data: {} }, error: null });
+  it('invokes track-engagement with a one-event batch (session_id + link_clicked)', async () => {
+    mockInvoke.mockResolvedValueOnce({ data: { ok: true }, error: null });
 
     await trackLinkClick('post-1');
 
     expect(mockInvoke).toHaveBeenCalledWith('track-engagement', {
-      body: { post_id: 'post-1', link_clicked: true },
+      body: [{ session_id: 'sess-fixed', post_id: 'post-1', link_clicked: true }],
     });
   });
 

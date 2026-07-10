@@ -31,5 +31,11 @@ module.exports = [
     },
     settings: { react: { version: 'detect' } },
   },
+  {
+    // Edge Functions (Deno, server-side): console is the standard log sink that
+    // Supabase captures for observability, so structured logging is expected here.
+    files: ['supabase/functions/**/*.ts'],
+    rules: { 'no-console': 'off' },
+  },
   prettierConfig,
 ];
