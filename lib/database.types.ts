@@ -37,9 +37,11 @@ export type Database = {
       engagement_sessions: {
         Row: {
           device: string | null
+          focused_seconds: number
           id: string
           last_seen_at: string
           link_clicked: boolean
+          max_scroll_pct: number
           post_id: string
           started_at: string
           status: string
@@ -47,9 +49,11 @@ export type Database = {
         }
         Insert: {
           device?: string | null
+          focused_seconds?: number
           id?: string
           last_seen_at?: string
           link_clicked?: boolean
+          max_scroll_pct?: number
           post_id: string
           started_at?: string
           status?: string
@@ -57,9 +61,11 @@ export type Database = {
         }
         Update: {
           device?: string | null
+          focused_seconds?: number
           id?: string
           last_seen_at?: string
           link_clicked?: boolean
+          max_scroll_pct?: number
           post_id?: string
           started_at?: string
           status?: string
@@ -564,4 +570,3 @@ export const Constants = {
     },
   },
 } as const
-
