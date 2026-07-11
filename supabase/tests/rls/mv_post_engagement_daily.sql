@@ -17,7 +17,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(10);
+select plan(13);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -145,6 +145,17 @@ select results_eq(
   'el post agrega en 2 filas: una por día con actividad'
 );
 
+-- ── Refresco manual (RPC public.refresh_post_engagement_daily) ──────────────
+select has_function(
+  'public', 'refresh_post_engagement_daily', array[]::text[],
+  'existe la RPC de refresco manual del dashboard'
+);
+
+select lives_ok(
+  $$ select public.refresh_post_engagement_daily() $$,
+  'manager puede refrescar el dashboard manualmente'
+);
+
 -- ── RBAC ────────────────────────────────────────────────────────────────────
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
 
@@ -152,6 +163,13 @@ select results_eq(
   $$ select count(*)::int from public.post_engagement_daily $$,
   $$ values (0) $$,
   'staff no ve datos del dashboard (vista vacía)'
+);
+
+select throws_ok(
+  $$ select public.refresh_post_engagement_daily() $$,
+  '42501',
+  null,
+  'staff no puede refrescar el dashboard'
 );
 
 reset role;

@@ -484,6 +484,10 @@ export type Database = {
       }
     }
     Functions: {
+      refresh_post_engagement_daily: {
+        Args: never
+        Returns: undefined
+      }
       apply_engagement_events: {
         Args: { p_events: Json; p_user_id: string }
         Returns: {

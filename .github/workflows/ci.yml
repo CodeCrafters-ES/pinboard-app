@@ -109,25 +109,34 @@ jobs:
       # Se sirve en background dentro del mismo step (así el proceso sigue vivo
       # durante los tests) y se CALIENTA antes de lanzar Jest.
       #
-      # El calentamiento manda `apikey`, y eso importa: sin esa cabecera la función
-      # devuelve 401 en su primer check ("Missing Authorization header") sin llegar a
-      # crear el cliente Supabase, así que el probe daría "listo" sin haber pagado el
-      # arranque en frío (resolución de los imports remotos de esm.sh). Con `apikey`,
-      # Kong inyecta el Authorization y la función recorre createClient + getUser:
-      # su 401 "Unauthorized" prueba que el camino caro ya está caliente. Así el cold
-      # start se paga aquí y no dentro de un timeout de Jest.
+      # El calentamiento manda un JWT (la anon key) en `Authorization`, y eso importa:
+      # sin esa cabecera la función corta en su primer check ("Missing Authorization
+      # header") sin llegar a crear el cliente Supabase, así que el probe daría "listo"
+      # sin haber pagado el arranque en frío. Con el Bearer, la función recorre
+      # createClient + getUser y responde 401 "Unauthorized": eso prueba que el camino
+      # caro ya está caliente, y el cold start se paga aquí y no en un timeout de Jest.
       - name: Serve edge functions and run integration tests
         run: |
           supabase functions serve track-engagement --no-verify-jwt > /tmp/functions.log 2>&1 &
-          ANON_KEY=$(supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '"')
-          for i in $(seq 1 60); do
+
+          # `status -o json` es estable entre versiones de la CLI; el parseo de
+          # `-o env` no lo era y dejaba ANON_KEY vacío en silencio.
+          ANON_KEY=$(supabase status -o json \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(JSON.parse(s).ANON_KEY))")
+          if [ -z "$ANON_KEY" ]; then
+            echo "::error::no se pudo leer ANON_KEY de 'supabase status -o json'"; exit 1
+          fi
+
+          for i in $(seq 1 30); do
             body=$(curl -s -m 30 -X POST http://127.0.0.1:54321/functions/v1/track-engagement \
-              -H "apikey: $ANON_KEY" -H "Content-Type: application/json" -d '[]' || true)
+              -H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY" \
+              -H "Content-Type: application/json" -d '[]' || true)
             if echo "$body" | grep -q 'Unauthorized'; then
               echo "edge function warm (createClient + getUser exercised)"; break
             fi
             echo "warming edge function... ($body)"; sleep 2
           done
+
           pnpm test -- --ci --testPathPattern="__tests__/integration/"
       - if: always()
         run: cat /tmp/functions.log || true
