@@ -36,18 +36,41 @@ const staffClient = createClient<Database>(LOCAL_URL, LOCAL_ANON_KEY);
 
 type FnResponse = { status: number; body: unknown };
 
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// El edge runtime recicla workers (`policy = "per_worker"`), así que una petición
+// suelta puede fallar con 5xx mientras arranca uno nuevo. El cliente real reintenta
+// los 5xx (lib/engagement/queue.ts) y aquí se hace lo mismo: sin esto, un fallo
+// transitorio se colaba en silencio y afloraba después como datos incorrectos.
+// Los 4xx son definitivos y se devuelven tal cual (los tests de 400/401 dependen de ello).
 async function callFn(events: unknown, token: string | null): Promise<FnResponse> {
-  const res = await fetch(FN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: LOCAL_ANON_KEY,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(events),
-  });
-  const body = await res.json().catch(() => null);
-  return { status: res.status, body };
+  let last: FnResponse = { status: 0, body: null };
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(FN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: LOCAL_ANON_KEY,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(events),
+      });
+      last = { status: res.status, body: await res.json().catch(() => null) };
+      if (res.status < 500) return last;
+    } catch (e) {
+      last = { status: 0, body: String(e) }; // error de red
+    }
+    if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS);
+  }
+
+  return last;
 }
 
 async function sessionRow(postId: string) {
@@ -147,14 +170,16 @@ describe('track-engagement Edge Function (integration)', () => {
     const postId = await createPost();
     const sid = crypto.randomUUID();
 
-    await callFn([{ session_id: sid, post_id: postId, link_clicked: true }], staffToken);
+    const click = await callFn([{ session_id: sid, post_id: postId, link_clicked: true }], staffToken);
+    expect(click.status).toBe(200);
     expect(await sessionRow(postId)).toMatchObject({ status: 'clicked', link_clicked: true });
 
     // A later event without a click must not revert clicked → viewed.
-    await callFn(
+    const later = await callFn(
       [{ session_id: sid, post_id: postId, link_clicked: false, focused_seconds_delta: 3 }],
       staffToken,
     );
+    expect(later.status).toBe(200);
     expect(await sessionRow(postId)).toMatchObject({ status: 'clicked', link_clicked: true });
   });
 
@@ -162,14 +187,17 @@ describe('track-engagement Edge Function (integration)', () => {
     const postId = await createPost();
     const sid = crypto.randomUUID();
 
-    await callFn(
+    const first = await callFn(
       [{ session_id: sid, post_id: postId, focused_seconds_delta: 5, max_scroll_pct: 0.3 }],
       staffToken,
     );
-    await callFn(
+    expect(first.status).toBe(200);
+
+    const second = await callFn(
       [{ session_id: sid, post_id: postId, focused_seconds_delta: 7, max_scroll_pct: 0.1 }],
       staffToken,
     );
+    expect(second.status).toBe(200);
 
     const row = await sessionRow(postId);
     expect(row).toMatchObject({ focused_seconds: 12, max_scroll_pct: 0.3 });
