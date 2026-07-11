@@ -7,19 +7,19 @@ type ProfileSnippet = { name: string | null; surname: string | null };
 type PostAuthor = { id: string; name: string | null; surname: string | null; avatar_url: string | null };
 
 export type PostWithAuthor = Tables<'posts'> & {
-  author: ProfileSnippet;
+  author: ProfileSnippet | null;
   comments_count: number;
   rating_average: number; // 0 when the post has no ratings yet
   rating_count: number;
 };
-export type PostDetail = Tables<'posts'> & { author: PostAuthor };
+export type PostDetail = Tables<'posts'> & { author: PostAuthor | null };
 export type PostCursor = { published_at: string; id: string };
 
 // PostgREST reverse-embed: post_comments(count) yields [{ count }] per post and
 // post_ratings(rating) yields the rating rows, so the feed's comment and rating
 // aggregates ride on the same query (no N+1).
 type PostRow = Tables<'posts'> & {
-  author: ProfileSnippet;
+  author: ProfileSnippet | null;
   post_comments: { count: number }[];
   post_ratings: { rating: number }[];
 };
@@ -33,9 +33,14 @@ export async function listPublishedPosts({
   pageSize?: number;
   client?: SupabaseClient<Database>;
 }): Promise<{ rows: PostWithAuthor[]; nextCursor: PostCursor | null }> {
+  // Author is embedded through profiles_public: RLS on profiles only lets staff
+  // read their own row, so embedding profiles directly returns author: null for
+  // every post they did not write.
   let query = client
     .from('posts')
-    .select('*, author:profiles!author_id(name, surname), post_comments(count), post_ratings(rating)')
+    .select(
+      '*, author:profiles_public!author_id(name, surname), post_comments(count), post_ratings(rating)',
+    )
     .eq('status', 'published')
     .is('deleted_at', null)
     .order('published_at', { ascending: false })
@@ -79,7 +84,7 @@ export async function listPublishedPosts({
 export async function getPostById(id: string): Promise<PostDetail> {
   const { data, error } = await supabase
     .from('posts')
-    .select('*, author:profiles!author_id(id, name, surname, avatar_url)')
+    .select('*, author:profiles_public!author_id(id, name, surname, avatar_url)')
     .eq('id', id)
     .is('deleted_at', null)
     .single();

@@ -132,7 +132,7 @@ export default function PostDetailScreen() {
             ) : null}
 
             <View className="flex-row items-center gap-2">
-              {post.author.avatar_url ? (
+              {post.author?.avatar_url ? (
                 <Image
                   source={{ uri: post.author.avatar_url }}
                   contentFit="cover"
@@ -141,7 +141,7 @@ export default function PostDetailScreen() {
               ) : (
                 <View className="w-8 h-8 rounded-full bg-nun-sand items-center justify-center">
                   <Text className="text-xs font-semibold text-nun-muted">
-                    {[post.author.name, post.author.surname]
+                    {[post.author?.name, post.author?.surname]
                       .filter(Boolean)
                       .map((w) => w![0])
                       .join('')
@@ -151,7 +151,7 @@ export default function PostDetailScreen() {
                 </View>
               )}
               <Text className="text-xs text-nun-muted flex-1" numberOfLines={1}>
-                {[post.author.name, post.author.surname].filter(Boolean).join(' ') || '—'}
+                {[post.author?.name, post.author?.surname].filter(Boolean).join(' ') || '—'}
                 {post.published_at ? ` · ${formatRelativeTime(post.published_at)}` : ''}
               </Text>
             </View>
