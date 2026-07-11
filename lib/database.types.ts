@@ -424,6 +424,7 @@ export type Database = {
           avg_seconds: number | null
           click_rate: number | null
           day: string | null
+          engaged_users: number | null
           post_id: string | null
           total_comments: number | null
           total_ratings: number | null
@@ -484,10 +485,6 @@ export type Database = {
       }
     }
     Functions: {
-      refresh_post_engagement_daily: {
-        Args: never
-        Returns: undefined
-      }
       apply_engagement_events: {
         Args: { p_events: Json; p_user_id: string }
         Returns: {
@@ -505,6 +502,7 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
+      refresh_post_engagement_daily: { Args: never; Returns: undefined }
     }
     Enums: {
       reaction_type: "like" | "dislike" | "love"

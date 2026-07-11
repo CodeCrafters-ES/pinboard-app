@@ -38,8 +38,10 @@ function EngagementRow({ row }: { row: PostEngagement }) {
         <Metric label="Valoración" value={formatRating(row.avg_rating)} />
         <Metric label="Reacciones" value={String(row.total_reactions)} />
       </View>
+      {/* engaged (ADR-001): interactuaron pero no llegaron al enlace externo. */}
       <Text className="mt-2 text-[11px] text-nun-muted">
-        {row.unique_readers} {row.unique_readers === 1 ? 'lector único' : 'lectores únicos'}
+        {row.unique_readers} {row.unique_readers === 1 ? 'lector único' : 'lectores únicos'} ·{' '}
+        {row.engaged_users} {row.engaged_users === 1 ? 'interactuó' : 'interactuaron'} sin clicar
       </Text>
     </Card>
   );
