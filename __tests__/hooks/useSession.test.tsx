@@ -1,6 +1,7 @@
-import { renderHook, act, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
+import { render, renderHook, act, waitFor } from '@testing-library/react-native';
 
-import { useSession } from '@/hooks/useSession';
+import { SessionProvider, useSession } from '@/hooks/useSession';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,13 @@ function setupWithSession() {
   });
 }
 
+// ─── Wrapper ─────────────────────────────────────────────────────────────────
+
+// The session state lives in the provider, so the hook is always rendered inside it.
+function wrapper({ children }: { children: React.ReactNode }) {
+  return <SessionProvider>{children}</SessionProvider>;
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
@@ -75,7 +83,7 @@ beforeEach(() => {
 describe('useSession', () => {
   it('starts with loading status', async () => {
     setupNoSession();
-    const { result } = await renderHook(() => useSession());
+    const { result } = await renderHook(() => useSession(), { wrapper });
     expect(result.current.status).toBe('loading');
     expect(result.current.session).toBeNull();
     expect(result.current.profile).toBeNull();
@@ -83,7 +91,7 @@ describe('useSession', () => {
 
   it('returns unauthenticated when no session exists', async () => {
     setupNoSession();
-    const { result } = await renderHook(() => useSession());
+    const { result } = await renderHook(() => useSession(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('unauthenticated'));
     expect(result.current.session).toBeNull();
     expect(result.current.profile).toBeNull();
@@ -91,7 +99,7 @@ describe('useSession', () => {
 
   it('returns authenticated with session and profile when session exists', async () => {
     setupWithSession();
-    const { result } = await renderHook(() => useSession());
+    const { result } = await renderHook(() => useSession(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('authenticated'));
     expect(result.current.session).toEqual({ userId: 'user-1', role: 'staff' });
     expect(result.current.profile).toEqual(STAFF_PROFILE);
@@ -105,7 +113,7 @@ describe('useSession', () => {
       return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
     });
 
-    const { result } = await renderHook(() => useSession());
+    const { result } = await renderHook(() => useSession(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('authenticated'));
 
     await act(async () => {
@@ -118,7 +126,7 @@ describe('useSession', () => {
 
   it('unsubscribes from auth changes on unmount', async () => {
     setupNoSession();
-    const { unmount } = await renderHook(() => useSession());
+    const { unmount } = await renderHook(() => useSession(), { wrapper });
     await waitFor(() => expect(mockGetSession).toHaveBeenCalled());
     unmount();
     expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
@@ -128,7 +136,7 @@ describe('useSession', () => {
     setupWithSession();
     mockAuthSignOut.mockResolvedValueOnce(undefined);
 
-    const { result } = await renderHook(() => useSession());
+    const { result } = await renderHook(() => useSession(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('authenticated'));
 
     await act(async () => {
@@ -142,7 +150,7 @@ describe('useSession', () => {
     setupWithSession();
     mockAuthSignOut.mockRejectedValueOnce(new Error('Network request failed'));
 
-    const { result } = await renderHook(() => useSession());
+    const { result } = await renderHook(() => useSession(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('authenticated'));
 
     await act(async () => {
@@ -160,7 +168,7 @@ describe('useSession', () => {
     });
     mockRegisterPushToken.mockResolvedValueOnce('ExponentPushToken[abc]');
 
-    const { result } = await renderHook(() => useSession());
+    const { result } = await renderHook(() => useSession(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('authenticated'));
 
     await act(async () => {
@@ -172,6 +180,35 @@ describe('useSession', () => {
     expect(mockRegisterPushToken).toHaveBeenCalledWith('user-1');
   });
 
+  // Regression: resolving the session per-consumer sent every new consumer back to
+  // 'loading', which made the role guard in (app)/_layout unmount its own <Redirect>
+  // and loop forever (blank screen for manager/staff landing on the admin tab).
+  it('does not reset to loading when another consumer mounts', async () => {
+    setupWithSession();
+
+    function StatusProbe({ label }: { label: string }) {
+      const { status } = useSession();
+      return <Text testID={label}>{status}</Text>;
+    }
+
+    const { rerender, getByTestId } = render(
+      <SessionProvider>
+        <StatusProbe label="first" />
+      </SessionProvider>,
+    );
+    await waitFor(() => expect(getByTestId('first').props.children).toBe('authenticated'));
+
+    rerender(
+      <SessionProvider>
+        <StatusProbe label="first" />
+        <StatusProbe label="late" />
+      </SessionProvider>,
+    );
+
+    expect(getByTestId('late').props.children).toBe('authenticated');
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+
   it('does not register push token on non-SIGNED_IN events', async () => {
     setupWithSession();
     let capturedCallback: ((event: string, session: unknown) => void) | null = null;
@@ -180,7 +217,7 @@ describe('useSession', () => {
       return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
     });
 
-    const { result } = await renderHook(() => useSession());
+    const { result } = await renderHook(() => useSession(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('authenticated'));
 
     await act(async () => {
