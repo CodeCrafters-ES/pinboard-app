@@ -104,6 +104,24 @@ jobs:
         with:
           version: 2.108.0
       - run: supabase start
-      - run: pnpm test -- --ci --testPathPattern="__tests__/integration/"
+      # `supabase start` no sirve las Edge Functions: hay que arrancarlas aparte
+      # para que el test de integración de track-engagement pueda alcanzarlas.
+      # Se sirve en background dentro del mismo step (así el proceso sigue vivo
+      # durante los tests) y se espera a que responda antes de lanzar Jest.
+      - name: Serve edge functions and run integration tests
+        run: |
+          supabase functions serve track-engagement --no-verify-jwt > /tmp/functions.log 2>&1 &
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST http://127.0.0.1:54321/functions/v1/track-engagement \
+              -H "Content-Type: application/json" -d '[]' || true)
+            if [ "$code" != "503" ] && [ "$code" != "000" ]; then
+              echo "edge functions ready (HTTP $code)"; break
+            fi
+            echo "waiting for edge functions... (HTTP $code)"; sleep 2
+          done
+          pnpm test -- --ci --testPathPattern="__tests__/integration/"
+      - if: always()
+        run: cat /tmp/functions.log || true
       - if: always()
         run: supabase stop
