@@ -32,7 +32,7 @@ export function PostCard({ post, onPress }: Props) {
   const { myReaction, counts, loading, toggle } = usePostReactions(post.id);
   const thumbSource = post.cover_image_url ? { uri: getThumbUrl(post.cover_image_url) } : null;
   const authorName =
-    [post.author.name, post.author.surname].filter(Boolean).join(' ') || '—';
+    [post.author?.name, post.author?.surname].filter(Boolean).join(' ') || '—';
   const publishedAt = post.published_at ? formatRelativeTime(post.published_at) : '';
 
   return (
