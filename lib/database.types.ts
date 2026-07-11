@@ -76,6 +76,13 @@ export type Database = {
             foreignKeyName: "engagement_sessions_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
+            referencedRelation: "post_engagement_metrics"
+            referencedColumns: ["post_id"]
+          },
+          {
+            foreignKeyName: "engagement_sessions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
             referencedRelation: "posts"
             referencedColumns: ["id"]
           },
@@ -150,6 +157,13 @@ export type Database = {
             foreignKeyName: "post_comments_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
+            referencedRelation: "post_engagement_metrics"
+            referencedColumns: ["post_id"]
+          },
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
             referencedRelation: "posts"
             referencedColumns: ["id"]
           },
@@ -182,6 +196,13 @@ export type Database = {
             foreignKeyName: "post_ratings_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
+            referencedRelation: "post_engagement_metrics"
+            referencedColumns: ["post_id"]
+          },
+          {
+            foreignKeyName: "post_ratings_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
             referencedRelation: "posts"
             referencedColumns: ["id"]
           },
@@ -210,6 +231,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "post_reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "post_engagement_metrics"
+            referencedColumns: ["post_id"]
+          },
           {
             foreignKeyName: "post_reactions_post_id_fkey"
             columns: ["post_id"]
@@ -389,6 +417,22 @@ export type Database = {
       }
     }
     Views: {
+      post_engagement_daily: {
+        Row: {
+          avg_rating: number | null
+          avg_scroll: number | null
+          avg_seconds: number | null
+          click_rate: number | null
+          day: string | null
+          post_id: string | null
+          total_comments: number | null
+          total_ratings: number | null
+          total_reactions: number | null
+          unique_clicks: number | null
+          unique_readers: number | null
+        }
+        Relationships: []
+      }
       post_engagement_metrics: {
         Row: {
           avg_rating: number | null
