@@ -1,8 +1,6 @@
 import { useState, useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
-import { FunctionsHttpError } from '@supabase/supabase-js';
-
 import { supabase } from '@/lib/supabase';
 import { postSchema, type PostFormData } from '@/lib/validation/postSchema';
 import { Button } from '@/components/ui/Button';
@@ -62,9 +60,9 @@ export function PostComposerForm({
     try {
       const { data, error } = await supabase.functions.invoke('scrape-og', { body: { url } });
       if (error) {
-        if (error instanceof FunctionsHttpError && error.context.status >= 500) {
-          showScrapeBanner('No se pudo obtener la preview del enlace');
-        }
+        // Any failure is surfaced: an undeployed function answers 404, and staying
+        // silent there left the composer looking like the link simply had no preview.
+        showScrapeBanner('No se pudo obtener la preview del enlace');
         return;
       }
       if (data) {

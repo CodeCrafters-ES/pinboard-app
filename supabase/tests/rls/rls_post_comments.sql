@@ -9,7 +9,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(7);
+select plan(8);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -67,6 +67,19 @@ select lives_ok(
             'aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'Staff comment')
   $test$,
   'staff puede insertar su propio comentario'
+);
+
+-- Negative: staff cannot insert a comment on behalf of another user
+select throws_ok(
+  $test$
+    insert into public.post_comments (post_id, author_id, body)
+    values ('eeeeeeee-0000-0000-0000-000000000001'::uuid,
+            'aaaaaaaa-0000-0000-0000-000000000002'::uuid,  -- manager, not the caller
+            'Comentario suplantado')
+  $test$,
+  '42501',
+  null,
+  'staff no puede insertar un comentario en nombre de otro usuario'
 );
 
 -- ── DELETE ────────────────────────────────────────────────────────────────────

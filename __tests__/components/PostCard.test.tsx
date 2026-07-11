@@ -18,6 +18,8 @@ jest.mock('expo-image', () => {
 
 jest.mock('lucide-react-native', () => ({
   ExternalLink: () => null,
+  MessageCircle: () => null,
+  Star: () => null,
 }));
 
 jest.mock('@/hooks/usePostReactions', () => ({
@@ -49,6 +51,9 @@ const POST: PostWithAuthor = {
   updated_at: '2026-06-30T09:00:00Z',
   deleted_at: null,
   author: { name: 'Juan', surname: 'García' },
+  comments_count: 4,
+  rating_average: 4.25,
+  rating_count: 8,
 };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -89,6 +94,18 @@ describe('PostCard', () => {
       />,
     );
     expect(getByText('—')).toBeTruthy();
+  });
+
+  it('renders the rounded rating average when the post has ratings', () => {
+    const { getByText } = render(<PostCard post={POST} onPress={jest.fn()} />);
+    expect(getByText('4.3')).toBeTruthy(); // 4.25 -> toFixed(1)
+  });
+
+  it('does not render a rating when the post has no ratings', () => {
+    const { queryByText } = render(
+      <PostCard post={{ ...POST, rating_average: 0, rating_count: 0 }} onPress={jest.fn()} />,
+    );
+    expect(queryByText('0.0')).toBeNull();
   });
 
   it('calls onPress when tapped', () => {

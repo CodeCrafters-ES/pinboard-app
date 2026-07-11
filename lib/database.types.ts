@@ -37,9 +37,11 @@ export type Database = {
       engagement_sessions: {
         Row: {
           device: string | null
+          focused_seconds: number
           id: string
           last_seen_at: string
           link_clicked: boolean
+          max_scroll_pct: number
           post_id: string
           started_at: string
           status: string
@@ -47,9 +49,11 @@ export type Database = {
         }
         Insert: {
           device?: string | null
+          focused_seconds?: number
           id?: string
           last_seen_at?: string
           link_clicked?: boolean
+          max_scroll_pct?: number
           post_id: string
           started_at?: string
           status?: string
@@ -57,15 +61,24 @@ export type Database = {
         }
         Update: {
           device?: string | null
+          focused_seconds?: number
           id?: string
           last_seen_at?: string
           link_clicked?: boolean
+          max_scroll_pct?: number
           post_id?: string
           started_at?: string
           status?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "engagement_sessions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "post_engagement_metrics"
+            referencedColumns: ["post_id"]
+          },
           {
             foreignKeyName: "engagement_sessions_post_id_fkey"
             columns: ["post_id"]
@@ -144,6 +157,13 @@ export type Database = {
             foreignKeyName: "post_comments_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
+            referencedRelation: "post_engagement_metrics"
+            referencedColumns: ["post_id"]
+          },
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
             referencedRelation: "posts"
             referencedColumns: ["id"]
           },
@@ -176,6 +196,13 @@ export type Database = {
             foreignKeyName: "post_ratings_post_id_fkey"
             columns: ["post_id"]
             isOneToOne: false
+            referencedRelation: "post_engagement_metrics"
+            referencedColumns: ["post_id"]
+          },
+          {
+            foreignKeyName: "post_ratings_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
             referencedRelation: "posts"
             referencedColumns: ["id"]
           },
@@ -204,6 +231,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "post_reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "post_engagement_metrics"
+            referencedColumns: ["post_id"]
+          },
           {
             foreignKeyName: "post_reactions_post_id_fkey"
             columns: ["post_id"]
@@ -383,6 +417,39 @@ export type Database = {
       }
     }
     Views: {
+      post_engagement_daily: {
+        Row: {
+          avg_rating: number | null
+          avg_scroll: number | null
+          avg_seconds: number | null
+          click_rate: number | null
+          day: string | null
+          engaged_users: number | null
+          post_id: string | null
+          total_comments: number | null
+          total_ratings: number | null
+          total_reactions: number | null
+          unique_clicks: number | null
+          unique_readers: number | null
+        }
+        Relationships: []
+      }
+      post_engagement_metrics: {
+        Row: {
+          avg_rating: number | null
+          avg_scroll: number | null
+          avg_seconds: number | null
+          click_rate: number | null
+          engaged_users: number | null
+          post_id: string | null
+          total_comments: number | null
+          total_ratings: number | null
+          total_reactions: number | null
+          unique_clicks: number | null
+          unique_readers: number | null
+        }
+        Relationships: []
+      }
       profiles_public: {
         Row: {
           avatar_url: string | null
@@ -418,6 +485,16 @@ export type Database = {
       }
     }
     Functions: {
+      apply_engagement_events: {
+        Args: { p_events: Json; p_user_id: string }
+        Returns: {
+          focused_seconds: number
+          link_clicked: boolean
+          max_scroll_pct: number
+          post_id: string
+          status: string
+        }[]
+      }
       auth_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -425,6 +502,7 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
+      refresh_post_engagement_daily: { Args: never; Returns: undefined }
     }
     Enums: {
       reaction_type: "like" | "dislike" | "love"
@@ -564,4 +642,3 @@ export const Constants = {
     },
   },
 } as const
-

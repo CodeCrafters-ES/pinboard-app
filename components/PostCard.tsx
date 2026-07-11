@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
-import { ExternalLink } from 'lucide-react-native';
+import { ExternalLink, MessageCircle, Star } from 'lucide-react-native';
 
 import { Text } from '@/components/ui';
 import { ReactionPicker } from '@/components/reactions';
@@ -32,7 +32,7 @@ export function PostCard({ post, onPress }: Props) {
   const { myReaction, counts, loading, toggle } = usePostReactions(post.id);
   const thumbSource = post.cover_image_url ? { uri: getThumbUrl(post.cover_image_url) } : null;
   const authorName =
-    [post.author.name, post.author.surname].filter(Boolean).join(' ') || '—';
+    [post.author?.name, post.author?.surname].filter(Boolean).join(' ') || '—';
   const publishedAt = post.published_at ? formatRelativeTime(post.published_at) : '';
 
   return (
@@ -74,7 +74,19 @@ export function PostCard({ post, onPress }: Props) {
               </>
             ) : null}
           </View>
-          <ExternalLink size={14} color="#8C7B6A" />
+          <View className="flex-row items-center gap-1">
+            {post.rating_count > 0 ? (
+              <View className="flex-row items-center gap-1 mr-2">
+                <Star size={14} color="#FACC15" fill="#FACC15" />
+                <Text className="text-xs text-nun-muted">
+                  {post.rating_average.toFixed(1)}
+                </Text>
+              </View>
+            ) : null}
+            <MessageCircle size={14} color="#8C7B6A" />
+            <Text className="text-xs text-nun-muted">{post.comments_count}</Text>
+            <ExternalLink size={14} color="#8C7B6A" className="ml-2" />
+          </View>
         </View>
 
         <ReactionPicker

@@ -1,0 +1,17 @@
+# Propietarios de código — Nun Ibiza PinBoard App
+#
+# Gana la ÚLTIMA regla que coincide, no la más específica.
+# Por eso el comodín va primero.
+#
+# Solo surte efecto de bloqueo si el ruleset tiene require_code_owner_review: true.
+
+*                       @Azfe
+
+# Zonas críticas: decisiones de arquitectura, esquema de datos y RLS.
+/docs/adr/              @Azfe
+/supabase/migrations/   @Azfe
+/supabase/functions/    @Azfe
+/supabase/tests/        @Azfe
+
+# La propia configuración de revisión no se cambia sin revisión.
+/.github/               @Azfe

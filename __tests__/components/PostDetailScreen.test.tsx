@@ -23,8 +23,52 @@ jest.mock('@/hooks/usePostReactions', () => ({
   }),
 }));
 
+jest.mock('@/hooks/usePostRating', () => ({
+  usePostRating: () => ({
+    myRating: null,
+    average: 0,
+    count: 0,
+    loading: false,
+    rate: jest.fn(),
+  }),
+}));
+
 jest.mock('@/components/reactions', () => ({
   ReactionPicker: () => null,
+}));
+
+jest.mock('@/hooks/useComments', () => ({
+  useComments: () => ({
+    comments: [],
+    total: 0,
+    loading: false,
+    loadingMore: false,
+    hasMore: false,
+    error: null,
+    loadMore: jest.fn(),
+    refresh: jest.fn(),
+    add: jest.fn(),
+    remove: jest.fn(),
+  }),
+}));
+
+jest.mock('@/hooks/useSession', () => ({
+  useSession: () => ({ session: null, profile: null }),
+}));
+
+jest.mock('@/components/comments', () => ({
+  CommentComposer: () => null,
+  CommentsList: () => null,
+}));
+
+const mockTrackLinkClick = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/engagement', () => ({
+  trackLinkClick: (...args: unknown[]) => mockTrackLinkClick(...args),
+  createEngagementSink: () => jest.fn(),
+}));
+
+jest.mock('@/hooks/usePostEngagement', () => ({
+  usePostEngagement: () => ({ onScroll: jest.fn(), sessionId: 'sess-test' }),
 }));
 
 jest.mock('expo-router', () => ({
@@ -111,7 +155,19 @@ describe('PostDetailScreen', () => {
     expect(screen.queryByTestId('markdown-body')).toBeNull();
   });
 
-  it('opens external_url when "Leer noticia" is tapped', () => {
+  it('tracks the click and opens external_url when "Leer noticia" is tapped', () => {
+    const openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as never);
+    mockUsePostDetail.mockReturnValue({ post: POST, loading: false, error: null });
+
+    render(<PostDetailScreen />);
+    fireEvent.press(screen.getByLabelText('Leer noticia →'));
+
+    expect(mockTrackLinkClick).toHaveBeenCalledWith('post-1', 'sess-test');
+    expect(openURLSpy).toHaveBeenCalledWith('https://example.com/noticia');
+  });
+
+  it('still opens external_url even if tracking rejects (fire-and-no-wait)', () => {
+    mockTrackLinkClick.mockRejectedValueOnce(new Error('network'));
     const openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as never);
     mockUsePostDetail.mockReturnValue({ post: POST, loading: false, error: null });
 

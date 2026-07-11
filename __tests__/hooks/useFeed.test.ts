@@ -31,6 +31,9 @@ const BASE_POST = {
   updated_at: '2026-06-30T09:00:00Z',
   deleted_at: null,
   author: { name: 'Juan', surname: 'García' },
+  comments_count: 0,
+  rating_average: 0,
+  rating_count: 0,
 };
 
 function makePosts(count: number) {
@@ -53,14 +56,26 @@ describe('useFeed', () => {
     expect(result.current.hasMore).toBe(false);
   });
 
-  it('sets error on fetch failure', async () => {
-    mockList.mockRejectedValueOnce(new Error('network error'));
+  it('shows a friendly message on failure and logs the underlying error', async () => {
+    const logged = jest.spyOn(console, 'error').mockImplementation(() => {});
+    // Un PostgrestError es un objeto plano, no un Error: es el caso que antes se tragaba
+    // el mensaje y dejaba a la UI sin nada accionable.
+    const dbError = { message: 'column post_ratings_1.rating does not exist', code: '42703' };
+    mockList.mockRejectedValueOnce(dbError);
 
     const { result } = renderHook(() => useFeed());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.error).toBe('network error');
+    // El usuario no ve jerga de Postgres…
+    expect(result.current.error).toBe('No se pudieron cargar las noticias.');
     expect(result.current.posts).toHaveLength(0);
+    // …pero el error real queda registrado para poder diagnosticarlo.
+    expect(logged).toHaveBeenCalledWith(
+      '[useFeed] column post_ratings_1.rating does not exist',
+      dbError,
+    );
+
+    logged.mockRestore();
   });
 
   it('hasMore is true when a nextCursor is returned', async () => {
