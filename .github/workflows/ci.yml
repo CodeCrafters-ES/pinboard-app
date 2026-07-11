@@ -107,18 +107,26 @@ jobs:
       # `supabase start` no sirve las Edge Functions: hay que arrancarlas aparte
       # para que el test de integración de track-engagement pueda alcanzarlas.
       # Se sirve en background dentro del mismo step (así el proceso sigue vivo
-      # durante los tests) y se espera a que responda antes de lanzar Jest.
+      # durante los tests) y se CALIENTA antes de lanzar Jest.
+      #
+      # El calentamiento manda `apikey`, y eso importa: sin esa cabecera la función
+      # devuelve 401 en su primer check ("Missing Authorization header") sin llegar a
+      # crear el cliente Supabase, así que el probe daría "listo" sin haber pagado el
+      # arranque en frío (resolución de los imports remotos de esm.sh). Con `apikey`,
+      # Kong inyecta el Authorization y la función recorre createClient + getUser:
+      # su 401 "Unauthorized" prueba que el camino caro ya está caliente. Así el cold
+      # start se paga aquí y no dentro de un timeout de Jest.
       - name: Serve edge functions and run integration tests
         run: |
           supabase functions serve track-engagement --no-verify-jwt > /tmp/functions.log 2>&1 &
-          for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" \
-              -X POST http://127.0.0.1:54321/functions/v1/track-engagement \
-              -H "Content-Type: application/json" -d '[]' || true)
-            if [ "$code" != "503" ] && [ "$code" != "000" ]; then
-              echo "edge functions ready (HTTP $code)"; break
+          ANON_KEY=$(supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '"')
+          for i in $(seq 1 60); do
+            body=$(curl -s -m 30 -X POST http://127.0.0.1:54321/functions/v1/track-engagement \
+              -H "apikey: $ANON_KEY" -H "Content-Type: application/json" -d '[]' || true)
+            if echo "$body" | grep -q 'Unauthorized'; then
+              echo "edge function warm (createClient + getUser exercised)"; break
             fi
-            echo "waiting for edge functions... (HTTP $code)"; sleep 2
+            echo "warming edge function... ($body)"; sleep 2
           done
           pnpm test -- --ci --testPathPattern="__tests__/integration/"
       - if: always()

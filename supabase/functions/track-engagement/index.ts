@@ -1,5 +1,7 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { z } from 'https://esm.sh/zod@3.23.8'
+// Registros oficiales (jsr / npm) en lugar del CDN esm.sh: el arranque en frío del
+// edge runtime resuelve estos imports mucho más rápido y de forma más fiable en CI.
+import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { z } from 'npm:zod@3.23.8'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
