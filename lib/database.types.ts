@@ -389,6 +389,22 @@ export type Database = {
       }
     }
     Views: {
+      post_engagement_metrics: {
+        Row: {
+          avg_rating: number | null
+          avg_scroll: number | null
+          avg_seconds: number | null
+          click_rate: number | null
+          engaged_users: number | null
+          post_id: string | null
+          total_comments: number | null
+          total_ratings: number | null
+          total_reactions: number | null
+          unique_clicks: number | null
+          unique_readers: number | null
+        }
+        Relationships: []
+      }
       profiles_public: {
         Row: {
           avatar_url: string | null
@@ -424,6 +440,16 @@ export type Database = {
       }
     }
     Functions: {
+      apply_engagement_events: {
+        Args: { p_events: Json; p_user_id: string }
+        Returns: {
+          focused_seconds: number
+          link_clicked: boolean
+          max_scroll_pct: number
+          post_id: string
+          status: string
+        }[]
+      }
       auth_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
