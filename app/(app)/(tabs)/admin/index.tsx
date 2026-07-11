@@ -84,6 +84,12 @@ export default function AdminPanel() {
           className="w-full"
         />
         <Button
+          label="Engagement"
+          variant="secondary"
+          onPress={() => router.push('/(app)/(tabs)/admin/engagement')}
+          className="w-full"
+        />
+        <Button
           label="Invitar usuario"
           variant="secondary"
           onPress={openModal}

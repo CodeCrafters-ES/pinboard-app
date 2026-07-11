@@ -90,6 +90,11 @@ export default function ProfileScreen() {
                 variant="secondary"
                 onPress={() => router.push('/(app)/(tabs)/admin/users')}
               />
+              <Button
+                label="Engagement"
+                variant="secondary"
+                onPress={() => router.push('/(app)/(tabs)/admin/engagement')}
+              />
             </>
           ) : null}
           <Button
