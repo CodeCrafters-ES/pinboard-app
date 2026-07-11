@@ -16,6 +16,8 @@ export type PostEngagement = {
   click_rate: number | null; // null si el post no tuvo lectores en el periodo
   avg_rating: number | null;
   total_reactions: number;
+  // ADR-001: interactuaron (reacción/valoración/comentario) sin clicar el enlace.
+  engaged_users: number;
   // Señales opcionales (ADR-0006): pueden no estar informadas.
   avg_seconds: number | null;
   avg_scroll: number | null;
@@ -27,6 +29,7 @@ type Totals = {
   readers: number;
   clicks: number;
   reactions: number;
+  engaged: number;
   ratingSum: number;
   ratingCount: number;
   secondsSum: number;
@@ -38,6 +41,7 @@ function emptyTotals(): Totals {
     readers: 0,
     clicks: 0,
     reactions: 0,
+    engaged: 0,
     ratingSum: 0,
     ratingCount: 0,
     secondsSum: 0,
@@ -57,7 +61,7 @@ export async function listPostEngagement({
   const { data: daily, error } = await client
     .from('post_engagement_daily')
     .select(
-      'post_id, unique_readers, unique_clicks, avg_rating, total_ratings, total_reactions, avg_seconds, avg_scroll',
+      'post_id, unique_readers, unique_clicks, avg_rating, total_ratings, total_reactions, engaged_users, avg_seconds, avg_scroll',
     )
     .gte('day', cutoff);
   if (error) throw error;
@@ -70,10 +74,12 @@ export async function listPostEngagement({
 
     // Sumar unique_readers entre días es correcto porque engagement_sessions guarda
     // 1 fila por (user_id, post_id): cada usuario cae en un único día por post, así
-    // que no hay doble conteo al agregar el periodo.
+    // que no hay doble conteo al agregar el periodo. engaged_users cumple lo mismo
+    // porque la vista imputa cada usuario al día de su primera interacción.
     t.readers += readers;
     t.clicks += row.unique_clicks ?? 0;
     t.reactions += row.total_reactions ?? 0;
+    t.engaged += row.engaged_users ?? 0;
 
     // Medias ponderadas: avg_rating pesa por nº de valoraciones de ese día; las
     // señales de comportamiento pesan por nº de sesiones (= lectores) de ese día.
@@ -108,6 +114,7 @@ export async function listPostEngagement({
         click_rate: t.readers > 0 ? t.clicks / t.readers : null,
         avg_rating: t.ratingCount > 0 ? t.ratingSum / t.ratingCount : null,
         total_reactions: t.reactions,
+        engaged_users: t.engaged,
         avg_seconds: t.readers > 0 ? t.secondsSum / t.readers : null,
         avg_scroll: t.readers > 0 ? t.scrollSum / t.readers : null,
       };
