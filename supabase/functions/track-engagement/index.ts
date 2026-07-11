@@ -76,11 +76,17 @@ Deno.serve(async (req: Request) => {
     return json({ error: error.message }, badRequest ? 400 : 500)
   }
 
-  // Logs estructurados por sesión afectada.
+  // Logs estructurados por post afectado. La RPC agrega por post_id, así que
+  // recuperamos los session_id del lote entrante agrupados por post.
+  const sessionsByPost = new Map<string, string[]>()
+  for (const e of events) {
+    sessionsByPost.set(e.post_id, [...(sessionsByPost.get(e.post_id) ?? []), e.session_id])
+  }
   for (const row of data ?? []) {
     console.log('track-engagement', {
       user_id: user.id,
       post_id: row.post_id,
+      session_id: sessionsByPost.get(row.post_id),
       link_clicked: row.link_clicked,
       new_status: row.status,
     })

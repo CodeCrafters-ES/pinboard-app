@@ -16,6 +16,11 @@ import type { Database } from '@/lib/database.types';
 
 jest.mock('@/lib/supabase', () => ({ supabase: {} }));
 
+// El edge runtime hace cold start en la primera invocación real (resuelve los
+// imports remotos de esm.sh); con `policy = "per_worker"` puede superar los 5s
+// por defecto de Jest. Damos margen a todo el fichero (tests + hooks).
+jest.setTimeout(30000);
+
 const LOCAL_URL = 'http://127.0.0.1:54321';
 const LOCAL_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRFA0NiK7ACcShDMkTBHHAN4vqu6S25ULXF-V70J4fM';
@@ -92,6 +97,10 @@ describe('track-engagement Edge Function (integration)', () => {
     const staff = await staffClient.auth.signInWithPassword(STAFF);
     if (staff.error) throw staff.error;
     staffToken = staff.data.session!.access_token;
+
+    // Warm up the edge function so the cold start is paid here (covered by the
+    // 30s hook timeout) and the individual tests run against a warm worker.
+    await callFn([{ session_id: crypto.randomUUID(), post_id: crypto.randomUUID() }], staffToken);
   });
 
   afterAll(async () => {
