@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '@/hooks/useSession';
 import { useAvatarUpload } from '@/hooks/useAvatarUpload';
 import { updateOwnProfile } from '@/lib/auth';
+import { reportError } from '@/lib/errors';
 import { Button } from '@/components/ui';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -82,8 +83,7 @@ export default function EditProfileScreen() {
       await updateOwnProfile(session.userId, { avatar_url: result.publicUrl });
       await refreshProfile();
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Error al subir la foto.';
-      Alert.alert('Error', message);
+      Alert.alert('Error', reportError('perfil.avatar', e, 'No se pudo subir la foto.'));
     }
   }
 
@@ -105,8 +105,7 @@ export default function EditProfileScreen() {
       await refreshProfile();
       router.back();
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'No se pudo guardar el perfil.';
-      Alert.alert('Error', message);
+      Alert.alert('Error', reportError('perfil.save', e, 'No se pudo guardar el perfil.'));
     } finally {
       setIsSaving(false);
     }

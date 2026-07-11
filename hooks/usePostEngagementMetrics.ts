@@ -5,6 +5,7 @@ import {
   DEFAULT_DAYS,
   type PostEngagement,
 } from '@/lib/supabase/queries/engagement';
+import { reportError } from '@/lib/errors';
 
 export function usePostEngagementMetrics(days: number = DEFAULT_DAYS) {
   const [rows, setRows] = useState<PostEngagement[]>([]);
@@ -22,7 +23,7 @@ export function usePostEngagementMetrics(days: number = DEFAULT_DAYS) {
       setRows(data);
     } catch (e) {
       if (fetchId !== fetchIdRef.current) return;
-      setError(e instanceof Error ? e.message : 'No se pudieron cargar las métricas.');
+      setError(reportError('usePostEngagementMetrics', e, 'No se pudieron cargar las métricas.'));
     } finally {
       if (fetchId === fetchIdRef.current) setLoading(false);
     }

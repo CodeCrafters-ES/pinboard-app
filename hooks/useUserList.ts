@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { supabase } from '@/lib/supabase';
 import { listProfiles, updateUserRole } from '@/lib/supabase/queries/profiles';
+import { reportError } from '@/lib/errors';
 import type { Database } from '@/lib/database.types';
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -47,7 +48,7 @@ export function useUserList() {
         setHasMore(pageVal * PAGE_SIZE + rows.length < total);
       } catch (err) {
         if (fetchIdRef.current !== fetchId) return;
-        setError(err instanceof Error ? err.message : 'Error cargando usuarios');
+        setError(reportError('useUserList.list', err, 'No se pudieron cargar los usuarios.'));
       } finally {
         if (fetchIdRef.current === fetchId) setLoading(false);
       }
@@ -99,7 +100,7 @@ export function useUserList() {
         );
         return { error: null };
       } catch (err) {
-        return { error: err instanceof Error ? err.message : 'Error actualizando rol' };
+        return { error: reportError('useUserList.updateRole', err, 'No se pudo actualizar el rol.') };
       }
     },
     [],
