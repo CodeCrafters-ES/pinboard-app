@@ -58,14 +58,16 @@ describe('engagement dashboard (integration)', () => {
       .single();
     if (pErr) throw pErr;
 
+    // Borrador a propósito: Jest corre los ficheros en paralelo y un post publicado
+    // entraría en el feed que listPublishedPosts está paginando, rompiendo sus
+    // invariantes. El dashboard no depende del status del post (lee por id).
     const { data: post, error: postErr } = await managerClient
       .from('posts')
       .insert({
         author_id: profile.id,
         title: `${RUN_MARKER} post`,
         external_url: 'https://example.com/dashboard',
-        status: 'published',
-        published_at: new Date().toISOString(),
+        status: 'draft',
       })
       .select('id')
       .single();
