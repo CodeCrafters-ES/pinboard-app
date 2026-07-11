@@ -5,6 +5,7 @@ import {
   type PostWithAuthor,
   type PostCursor,
 } from '@/lib/supabase/queries/posts';
+import { reportError } from '@/lib/errors';
 
 export type { PostWithAuthor };
 
@@ -41,7 +42,7 @@ export function useFeed() {
       setState((prev) => ({
         ...prev,
         loading: false,
-        error: e instanceof Error ? e.message : 'Error al cargar',
+        error: reportError('useFeed', e, 'No se pudieron cargar las noticias.'),
       }));
     } finally {
       loadingRef.current = false;
