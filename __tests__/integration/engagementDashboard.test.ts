@@ -136,6 +136,8 @@ describe('engagement dashboard (integration)', () => {
       unique_readers: 2,
       unique_clicks: 1,
       total_reactions: 1,
+      // engaged (ADR-001): el manager valoró sin clicar; el staff clicó, así que no cuenta.
+      engaged_users: 1,
     });
     expect(row!.click_rate).toBeCloseTo(0.5);
     expect(row!.avg_rating).toBeCloseTo(4);

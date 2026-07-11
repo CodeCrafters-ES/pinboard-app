@@ -12,6 +12,7 @@ type DailyRow = {
   avg_rating: number | null;
   total_ratings: number | null;
   total_reactions: number | null;
+  engaged_users: number | null;
   avg_seconds: number | null;
   avg_scroll: number | null;
 };
@@ -44,6 +45,7 @@ describe('listPostEngagement', () => {
           avg_rating: 4,
           total_ratings: 2,
           total_reactions: 1,
+          engaged_users: 1,
           avg_seconds: 15,
           avg_scroll: 0.6,
         },
@@ -54,6 +56,7 @@ describe('listPostEngagement', () => {
           avg_rating: 2,
           total_ratings: 1,
           total_reactions: 2,
+          engaged_users: 2,
           avg_seconds: 5,
           avg_scroll: 0.2,
         },
@@ -69,6 +72,8 @@ describe('listPostEngagement', () => {
       unique_readers: 5, // 2 + 3
       unique_clicks: 3, // 1 + 2
       total_reactions: 3, // 1 + 2
+      // La vista imputa cada usuario engaged a su primer día, así que sumar no dobla.
+      engaged_users: 3, // 1 + 2
     });
     expect(row!.click_rate).toBeCloseTo(3 / 5);
     // avg_rating pondera por nº de valoraciones: (4*2 + 2*1) / 3
@@ -88,6 +93,7 @@ describe('listPostEngagement', () => {
           avg_rating: null,
           total_ratings: 0,
           total_reactions: 2,
+          engaged_users: 0,
           avg_seconds: null,
           avg_scroll: null,
         },
@@ -112,6 +118,7 @@ describe('listPostEngagement', () => {
       avg_rating: null,
       total_ratings: 0,
       total_reactions: 0,
+      engaged_users: 0,
       avg_seconds: null,
       avg_scroll: null,
     };

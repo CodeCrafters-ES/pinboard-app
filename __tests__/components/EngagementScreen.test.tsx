@@ -41,6 +41,7 @@ const ROWS: PostEngagement[] = [
     click_rate: 0.75,
     avg_rating: 4.5,
     total_reactions: 6,
+    engaged_users: 2,
     avg_seconds: 12,
     avg_scroll: 0.8,
   },
@@ -73,6 +74,8 @@ describe('EngagementScreen', () => {
     expect(screen.getByText('75%')).toBeTruthy(); // click_rate
     expect(screen.getByText('4.5')).toBeTruthy(); // avg_rating
     expect(screen.getByText('6')).toBeTruthy(); // total_reactions
+    // engaged (ADR-001): interactuaron pero no llegaron al enlace externo.
+    expect(screen.getByText(/2 interactuaron sin clicar/)).toBeTruthy();
   });
 
   it('shows the metrics to a manager too', () => {

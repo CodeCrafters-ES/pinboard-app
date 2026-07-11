@@ -17,7 +17,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(13);
+select plan(15);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -126,6 +126,26 @@ select results_eq(
        and day = '2026-07-01'::date $$,
   $$ values (15.00::numeric(10,2), 0.600::numeric(4,3)) $$,
   'día 1: señales opcionales avg_seconds=15.00, avg_scroll=0.600 (ADR-0006)'
+);
+
+-- ── engaged (ADR-001): interactuó y NO clicó, imputado a su primer día ──────
+--   staff   → valoró y reaccionó el día 1, pero CLICÓ  → NO engaged
+--   manager → valoró el día 1 y no clicó                → engaged en el día 1
+--   admin   → valoró el día 2 (sin sesión, sin clic)    → engaged en el día 2
+select results_eq(
+  $$ select engaged_users from public.post_engagement_daily
+     where post_id = 'aaaaaaaa-4444-0000-0000-00000000000a'::uuid
+       and day = '2026-07-01'::date $$,
+  $$ values (1::bigint) $$,
+  'día 1: engaged_users=1 (manager interactuó sin clicar; staff clicó)'
+);
+
+select results_eq(
+  $$ select engaged_users from public.post_engagement_daily
+     where post_id = 'aaaaaaaa-4444-0000-0000-00000000000a'::uuid
+       and day = '2026-07-02'::date $$,
+  $$ values (1::bigint) $$,
+  'día 2: engaged_users=1 (admin valoró sin sesión ni clic)'
 );
 
 -- ── Día 2: sin sesiones → click_rate NULL, sin división por cero ────────────
