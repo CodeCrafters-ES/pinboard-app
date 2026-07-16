@@ -34,6 +34,7 @@ export default {
     plugins: [
       'expo-router',
       'expo-secure-store',
+      './plugins/withImageCropperJitpackFix.js',
       [
         'expo-image-picker',
         {
