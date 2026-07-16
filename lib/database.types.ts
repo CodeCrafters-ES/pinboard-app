@@ -90,7 +90,9 @@ export type Database = {
       }
       events: {
         Row: {
-          author_id: string
+          all_day: boolean
+          author_id: string | null
+          color_tag: Database["public"]["Enums"]["event_color"]
           created_at: string
           description: string | null
           event_end_at: string
@@ -102,7 +104,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          author_id: string
+          all_day?: boolean
+          author_id?: string | null
+          color_tag?: Database["public"]["Enums"]["event_color"]
           created_at?: string
           description?: string | null
           event_end_at: string
@@ -114,7 +118,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          author_id?: string
+          all_day?: boolean
+          author_id?: string | null
+          color_tag?: Database["public"]["Enums"]["event_color"]
           created_at?: string
           description?: string | null
           event_end_at?: string
@@ -349,7 +355,9 @@ export type Database = {
       push_tokens: {
         Row: {
           created_at: string
+          device_name: string | null
           id: string
+          last_seen_at: string
           platform: string
           token: string
           updated_at: string
@@ -357,7 +365,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          device_name?: string | null
           id?: string
+          last_seen_at?: string
           platform: string
           token: string
           updated_at?: string
@@ -365,7 +375,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          device_name?: string | null
           id?: string
+          last_seen_at?: string
           platform?: string
           token?: string
           updated_at?: string
@@ -505,6 +517,7 @@ export type Database = {
       refresh_post_engagement_daily: { Args: never; Returns: undefined }
     }
     Enums: {
+      event_color: "brown" | "sea" | "sage" | "amber" | "parchment"
       reaction_type: "like" | "dislike" | "love"
       user_role: "staff" | "manager" | "admin"
     }
@@ -637,6 +650,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      event_color: ["brown", "sea", "sage", "amber", "parchment"],
       reaction_type: ["like", "dislike", "love"],
       user_role: ["staff", "manager", "admin"],
     },
