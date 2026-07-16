@@ -62,7 +62,8 @@ Deno.serve(async (req: Request) => {
   }
 
   const { data, error: inviteError } = await svc.auth.admin.inviteUserByEmail(email, {
-    redirectTo: 'nun-ibiza://auth/set-password',
+    // Route is /(auth)/set-password → transparent group → actual path: /set-password
+    redirectTo: 'nun-ibiza://set-password',
     data: { role },
   })
 
