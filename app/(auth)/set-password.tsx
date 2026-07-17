@@ -50,6 +50,8 @@ export default function SetPasswordScreen() {
 
   // Subscribe to SIGNED_IN to confirm the token was applied successfully
   useEffect(() => {
+    let handled = false;
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
@@ -57,7 +59,12 @@ export default function SetPasswordScreen() {
     });
 
     async function applyToken(url: string) {
+      if (handled) return;
       const { accessToken, refreshToken, tokenHash, type } = parseAuthFragment(url);
+      // Ignore URLs without an auth token (e.g. the stale launch URL on warm start):
+      // wait for the real invite link to arrive via the `url` event instead of erroring.
+      if (!tokenHash && !accessToken) return;
+      handled = true;
       try {
         if (tokenHash && type) {
           const { error } = await supabase.auth.verifyOtp({
@@ -66,27 +73,37 @@ export default function SetPasswordScreen() {
           });
           if (error) throw error;
           // onAuthStateChange SIGNED_IN → tokenStatus: 'ready'
-        } else if (accessToken) {
+        } else {
           const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
+            access_token: accessToken!,
             refresh_token: refreshToken ?? '',
           });
           if (error) throw error;
           // onAuthStateChange SIGNED_IN → tokenStatus: 'ready'
-        } else {
-          throw new Error('no_token');
         }
       } catch {
         setTokenStatus('error');
       }
     }
 
+    // Warm start: app already open, invite link arrives as a `url` event.
+    const linkSub = Linking.addEventListener('url', ({ url }) => applyToken(url));
+
+    // Cold start: app launched by the invite link.
     Linking.getInitialURL().then((url) => {
       if (url) applyToken(url);
-      else setTokenStatus('error');
     });
 
-    return () => subscription.unsubscribe();
+    // If no valid token arrives shortly (bad/expired link, or none at all), surface the error.
+    const timeout = setTimeout(() => {
+      if (!handled) setTokenStatus('error');
+    }, 3000);
+
+    return () => {
+      subscription.unsubscribe();
+      linkSub.remove();
+      clearTimeout(timeout);
+    };
   }, []);
 
   // Navigate to role screen once session confirmed after password save

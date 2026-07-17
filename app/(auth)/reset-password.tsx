@@ -47,6 +47,8 @@ export default function ResetPasswordScreen() {
 
   // Subscribe to PASSWORD_RECOVERY to confirm the recovery token was accepted
   useEffect(() => {
+    let handled = false;
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
@@ -54,7 +56,12 @@ export default function ResetPasswordScreen() {
     });
 
     async function applyToken(url: string) {
+      if (handled) return;
       const { accessToken, refreshToken, tokenHash, type } = parseAuthFragment(url);
+      // Ignore URLs without an auth token (e.g. the stale launch URL on warm start):
+      // wait for the real recovery link to arrive via the `url` event instead of erroring.
+      if (!tokenHash && !accessToken) return;
+      handled = true;
       try {
         if (tokenHash && type) {
           const { error } = await supabase.auth.verifyOtp({
@@ -63,27 +70,37 @@ export default function ResetPasswordScreen() {
           });
           if (error) throw error;
           // onAuthStateChange PASSWORD_RECOVERY → tokenStatus: 'ready'
-        } else if (accessToken) {
+        } else {
           const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
+            access_token: accessToken!,
             refresh_token: refreshToken ?? '',
           });
           if (error) throw error;
           // onAuthStateChange PASSWORD_RECOVERY → tokenStatus: 'ready'
-        } else {
-          throw new Error('no_token');
         }
       } catch {
         setTokenStatus('error');
       }
     }
 
+    // Warm start: app already open, recovery link arrives as a `url` event.
+    const linkSub = Linking.addEventListener('url', ({ url }) => applyToken(url));
+
+    // Cold start: app launched by the recovery link.
     Linking.getInitialURL().then((url) => {
       if (url) applyToken(url);
-      else setTokenStatus('error');
     });
 
-    return () => subscription.unsubscribe();
+    // If no valid token arrives shortly (bad/expired link, or none at all), surface the error.
+    const timeout = setTimeout(() => {
+      if (!handled) setTokenStatus('error');
+    }, 3000);
+
+    return () => {
+      subscription.unsubscribe();
+      linkSub.remove();
+      clearTimeout(timeout);
+    };
   }, []);
 
   async function handleSubmit() {
