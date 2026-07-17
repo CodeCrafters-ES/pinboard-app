@@ -6,6 +6,7 @@ import ResetPasswordScreen from '@/app/(auth)/reset-password';
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
 const mockGetInitialURL = jest.fn();
+const mockAddEventListener = jest.fn();
 const mockSetSession = jest.fn();
 const mockVerifyOtp = jest.fn();
 const mockUpdateUser = jest.fn();
@@ -16,6 +17,7 @@ const mockReplace = jest.fn();
 
 jest.mock('expo-linking', () => ({
   getInitialURL: (...args: unknown[]) => mockGetInitialURL(...args),
+  addEventListener: (...args: unknown[]) => mockAddEventListener(...args),
 }));
 
 jest.mock('@/lib/supabase', () => ({
@@ -70,6 +72,7 @@ function setupReadyToken() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockAddEventListener.mockReturnValue({ remove: jest.fn() });
   mockOnAuthStateChange.mockReturnValue({
     data: { subscription: { unsubscribe: mockUnsubscribe } },
   });
@@ -88,7 +91,10 @@ describe('ResetPasswordScreen', () => {
   it('shows error state when no URL token is found', async () => {
     mockGetInitialURL.mockResolvedValueOnce(null);
     render(<ResetPasswordScreen />);
-    await waitFor(() => expect(screen.getByText('Enlace expirado')).toBeTruthy());
+    // The screen only errors after its 3 s "no valid token arrived" timeout.
+    await waitFor(() => expect(screen.getByText('Enlace expirado')).toBeTruthy(), {
+      timeout: 4000,
+    });
   });
 
   it('shows error state and "Solicitar nuevo enlace" when token is expired', async () => {
