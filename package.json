@@ -21,7 +21,9 @@
     "supabase:reset": "supabase db reset",
     "supabase:test:rls": "supabase db reset && supabase test db supabase/tests/rls/",
     "db:reset": "supabase db reset",
-    "lint:md": "markdownlint-cli2 docs/adr/**/*.md"
+    "lint:md": "markdownlint-cli2 docs/adr/**/*.md",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
