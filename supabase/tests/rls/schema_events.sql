@@ -8,7 +8,7 @@
 --   manager: aaaaaaaa-0000-0000-0000-000000000002
 
 begin;
-select plan(10);
+select plan(14);
 
 -- ── Structure ──────────────────────────────────────────────────────────────
 select has_column('public', 'events', 'all_day', 'events has an all_day column');
@@ -53,6 +53,40 @@ select throws_ok(
   'title above 200 chars violates the CHECK constraint'
 );
 
+select throws_ok(
+  $test$
+    insert into public.events (author_id, title, description, event_start_at, event_end_at)
+    values ('aaaaaaaa-0000-0000-0000-000000000002'::uuid,
+            'Descripción larga', repeat('y', 5001), now(), now() + interval '1 hour')
+  $test$,
+  '23514',
+  null,
+  'description above 5000 chars violates the CHECK constraint'
+);
+
+select throws_ok(
+  $test$
+    insert into public.events (author_id, title, location, event_start_at, event_end_at)
+    values ('aaaaaaaa-0000-0000-0000-000000000002'::uuid,
+            'Ubicación larga', repeat('z', 201), now(), now() + interval '1 hour')
+  $test$,
+  '23514',
+  null,
+  'location above 200 chars violates the CHECK constraint'
+);
+
+-- ── CHECK range: end must be after start (events_end_after_start, EPIC-S00) ───
+select throws_ok(
+  $test$
+    insert into public.events (author_id, title, event_start_at, event_end_at)
+    values ('aaaaaaaa-0000-0000-0000-000000000002'::uuid,
+            'Rango inválido', now(), now())
+  $test$,
+  '23514',
+  null,
+  'event_end_at <= event_start_at violates events_end_after_start'
+);
+
 -- ── Defaults ───────────────────────────────────────────────────────────────
 insert into public.events (id, author_id, title, event_start_at, event_end_at)
 values ('eeeeeeee-1111-0000-0000-000000000001'::uuid,
@@ -66,6 +100,36 @@ select results_eq(
   $test$,
   $expected$ values ('brown', false) $expected$,
   'defaults: color_tag = brown, all_day = false'
+);
+
+-- ── FK behavior: al borrar el autor el evento se conserva (author_id → null) ──
+-- Usuario desechable (el trigger on_auth_user_created le crea un profile; la
+-- cascada de profiles lo limpia al borrar el usuario). El rollback del test
+-- deshace todo igualmente.
+insert into auth.users (
+  instance_id, id, aud, role, email, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change
+) values (
+  '00000000-0000-0000-0000-000000000000'::uuid,
+  'dddddddd-0000-0000-0000-000000000009'::uuid,
+  'authenticated', 'authenticated', 'throwaway-n05@nun-ibiza.dev',
+  now(), now(), '', '', '', ''
+);
+
+insert into public.events (id, author_id, title, event_start_at, event_end_at)
+values ('eeeeeeee-1111-0000-0000-000000000002'::uuid,
+        'dddddddd-0000-0000-0000-000000000009'::uuid,
+        'Evento con autor a borrar', now(), now() + interval '1 hour');
+
+delete from auth.users where id = 'dddddddd-0000-0000-0000-000000000009'::uuid;
+
+select results_eq(
+  $test$
+    select author_id from public.events
+    where id = 'eeeeeeee-1111-0000-0000-000000000002'::uuid
+  $test$,
+  $expected$ values (null::uuid) $expected$,
+  'al borrar el autor el evento se conserva con author_id = null'
 );
 
 select * from finish();
