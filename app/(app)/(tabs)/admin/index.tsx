@@ -78,6 +78,12 @@ export default function AdminPanel() {
           className="w-full"
         />
         <Button
+          label="Gestionar eventos"
+          variant="primary"
+          onPress={() => router.push('/(app)/(tabs)/admin/events')}
+          className="w-full"
+        />
+        <Button
           label="Gestionar usuarios"
           variant="secondary"
           onPress={() => router.push('/(app)/(tabs)/admin/users')}
