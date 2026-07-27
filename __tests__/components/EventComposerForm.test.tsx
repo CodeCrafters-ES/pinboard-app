@@ -102,4 +102,40 @@ describe('EventComposerForm', () => {
     );
     expect(screen.getByLabelText('Eliminar evento')).toBeTruthy();
   });
+
+  it('creates an all-day event, normalizing start to 00:00 and end to 23:59:59.999', async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    render(
+      <EventComposerForm
+        authorId="user-1"
+        onSubmit={onSubmit}
+        submitLabel="Crear evento"
+        saving={false}
+      />,
+    );
+
+    fireEvent.changeText(screen.getByPlaceholderText('Título del evento…'), 'Fiesta de verano');
+
+    // Con el input de hora oculto (all_day), solo se rellenan las fechas.
+    fireEvent(screen.getByLabelText('Todo el día'), 'valueChange', true);
+
+    const [startDate, endDate] = screen.getAllByPlaceholderText('AAAA-MM-DD');
+    fireEvent.changeText(startDate, '2026-08-01');
+    fireEvent.changeText(endDate, '2026-08-01');
+
+    fireEvent.press(screen.getByLabelText('Crear evento'));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    const submitted = onSubmit.mock.calls[0][0];
+    expect(submitted.all_day).toBe(true);
+    // Inicio a medianoche local, fin al último ms del día local.
+    expect(new Date(submitted.event_start_at).getHours()).toBe(0);
+    expect(new Date(submitted.event_start_at).getMinutes()).toBe(0);
+    expect(new Date(submitted.event_end_at).getHours()).toBe(23);
+    expect(new Date(submitted.event_end_at).getMinutes()).toBe(59);
+    expect(new Date(submitted.event_end_at) > new Date(submitted.event_start_at)).toBe(true);
+  });
 });
