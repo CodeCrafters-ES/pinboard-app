@@ -1,6 +1,16 @@
 import { z } from 'zod';
 
-export const EVENT_COLORS = ['brown', 'sea', 'sage', 'amber', 'parchment'] as const;
+import type { EventColor } from '@/lib/eventColors';
+
+// Tupla literal requerida por z.enum; `satisfies` la ata al enum event_color de
+// la BD (lib/eventColors) para que cualquier drift del enum falle en compilación.
+export const EVENT_COLORS = [
+  'brown',
+  'sea',
+  'sage',
+  'amber',
+  'parchment',
+] as const satisfies readonly EventColor[];
 
 export const eventSchema = z
   .object({

@@ -108,14 +108,14 @@ export function EventComposerForm({
   }
 
   function handleSubmit() {
-    const startIso = combine(startDate, startTime);
-    const endIso = combine(endDate, endTime, allDay);
+    // Con all_day el input de hora está oculto: el inicio se normaliza a 00:00 y
+    // el fin a 23:59:59.999 (endOfDay), consistente con el AC de I-F-N05-01-02.
+    const startIso = combine(startDate, allDay ? '00:00' : startTime);
+    const endIso = combine(endDate, allDay ? '00:00' : endTime, allDay);
 
     const fieldErrors: FieldErrors = {};
     if (!startIso) fieldErrors.event_start_at = 'Fecha/hora de inicio no válida';
-    if (!combine(endDate, allDay ? '00:00' : endTime, allDay)) {
-      fieldErrors.event_end_at = 'Fecha/hora de fin no válida';
-    }
+    if (!endIso) fieldErrors.event_end_at = 'Fecha/hora de fin no válida';
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors);
       return;

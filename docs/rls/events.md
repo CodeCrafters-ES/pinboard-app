@@ -57,6 +57,7 @@ pnpm supabase:test:rls   # supabase db reset && supabase test db supabase/tests/
 
 ## Referencias
 
+- Modelo completo del dominio (esquema, paleta, CRUD móvil): [`docs/calendar.md`](../calendar.md).
 - Migración de policies: `supabase/migrations/20260716000001_rls_events_n05_01_03.sql`.
 - Esquema de la tabla: `supabase/migrations/20260618300000_create_events_table.sql` +
   `supabase/migrations/20260716000000_alter_events_n05_schema.sql` (`author_id` nullable, `color_tag`, `all_day`).
