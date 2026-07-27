@@ -100,7 +100,7 @@ Todas las tablas del dominio tienen `ENABLE ROW LEVEL SECURITY`. Resumen de poli
 | `post_reactions` | any auth | own | own | own / admin |
 | `post_ratings` | any auth | own | own | — (no policy) |
 | `post_comments` | any auth | own | own | own / admin |
-| `events` | any auth | manager / admin | manager / admin | manager / admin |
+| `events` | any auth | manager / admin | own / admin | own / admin |
 | `engagement_sessions` | own / manager+admin | — | — | — |
 | `push_tokens` | own | own | own | own |
 
