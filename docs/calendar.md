@@ -98,16 +98,35 @@ MVP. El idioma se fija con `LocaleConfig` (`es`) al importar la pantalla.
 
 ### Carga de datos por rango — `hooks/useEventsInRange.ts`
 
-`useEventsInRange(startISO, endISO)` trae solo los eventos cuyo rango **interseca** el rango visible, no toda
-la tabla:
+`useEventsInRange(from: Date, to: Date)` → `{ events, loading, error, refetch }`. Trae solo los eventos cuyo
+rango **interseca** `[from, to)`, no toda la tabla, con una query eficiente (subconjunto de columnas
+`EventListItem`: `id, title, event_start_at, event_end_at, all_day, color_tag, location`):
 
 ```
-event_start_at < endISO  AND  event_end_at > startISO
+event_start_at < to  AND  event_end_at > from
 ```
 
-Es la intersección de dos intervalos semiabiertos `[start, end)`, así que incluye eventos multi-día que
-empiezan antes del rango visible pero lo cruzan. El rango del mes se acolcha ±7 días para cubrir los días de
-meses adyacentes que el grid muestra. Al cambiar de mes/semana se recalcula el rango y se recarga.
+Es la intersección de dos intervalos semiabiertos `[from, to)`, así que incluye eventos multi-día que empiezan
+antes del rango visible pero lo cruzan. Al cambiar de mes/semana se recalcula el rango y se recarga (el hook
+depende de `from`/`to`).
+
+### Cálculo de rangos — `lib/eventRange.ts` (puro, testeable)
+
+- `getRangeForView(view, anchor)` → `{ from, to }` en hora local del dispositivo: **week** = lunes 00:00 →
+  domingo 23:59:59.999; **month** = día 1 00:00 → último día 23:59:59.999.
+- `getDayRange(anchor)` → día completo local (lo usa el calendario para la lista del día seleccionado).
+
+El calendario usa `firstDay={1}` (lunes) y `hideExtraDays` en la vista mes, de modo que el grid visible coincide
+exactamente con el mes cargado por `getRangeForView('month')`.
+
+### Listado reutilizable — `components/EventList.tsx`
+
+`<EventList from to groupBy="day" | "none" onPressEvent? />` — se alimenta de `useEventsInRange` y sirve tanto al
+calendario como a vistas de listado. Estados: **loading** → skeleton; **error** → mensaje + "Reintentar"
+(`refetch`); **vacío** → mensaje + CTA "Crear evento" solo para admin/manager. `groupBy: 'day'` agrupa con
+`eventsByDay` y pinta encabezado por día (key compuesta `${día}-${id}`, sin warnings con multi-día); `'none'`
+lista plana ordenada por `event_start_at`. La fila vive en `components/EventRow.tsx` (barra de color, título,
+hora, ubicación; pasados atenuados). Sin paginación en el MVP (volumen bajo).
 
 ### Mapeo de color y agrupación — `lib/eventsByDay.ts` (puro, testeable)
 
@@ -120,9 +139,9 @@ meses adyacentes que el grid muestra. Al cambiar de mes/semana se recalcula el r
   `accessibilityLabel` tipo `"12 de marzo, 2 eventos"`).
 
 La vista mes usa un `dayComponent` custom que pinta los dots y el `+N`; la vista semana usa el marcado
-multi-dot integrado. Los eventos del día seleccionado se listan **inline** bajo el calendario (tarjeta con
-barra de color lateral, título y hora; pasados atenuados), siguiendo el mockup de `DESIGN.md`. Pull-to-refresh
-recarga sin parpadeos (conserva los datos durante la recarga). Tema claro/oscuro según el sistema.
+multi-dot integrado. Los eventos del día seleccionado se listan bajo el calendario con `<EventList groupBy="none">`
+(rango del día vía `getDayRange`), siguiendo el mockup de `DESIGN.md`. Pull-to-refresh recarga los dots sin
+parpadeos. Tema claro/oscuro según el sistema.
 
 ### Detalle de evento — `app/(app)/(tabs)/calendario/[id].tsx`
 
@@ -131,10 +150,11 @@ firmado con `getSignedImageUrl` de `lib/media.ts`), chip de color + label, rango
 botón *ghost* "Editar" visible solo para el autor o un admin → navega al editor de `admin/events/[id]/edit`.
 El stack de la sección vive en `app/(app)/(tabs)/calendario/_layout.tsx`.
 
-Tests: `__tests__/lib/eventsByDay.test.ts` (agrupación, multi-día, mapeo de color, `+N`) y
-`__tests__/hooks/useEventsInRange.test.ts` (predicados de intersección).
+Tests: `__tests__/lib/eventsByDay.test.ts` (agrupación, multi-día, mapeo de color, `+N`),
+`__tests__/lib/eventRange.test.ts` (límites de semana/mes/día), `__tests__/hooks/useEventsInRange.test.ts`
+(columnas + predicados de intersección) y `__tests__/components/EventList.test.tsx` (estados y agrupación).
 
-Issues: F-N05-02 (#249) · I-F-N05-02-01 (#253).
+Issues: F-N05-02 (#249) · I-F-N05-02-01 (#253) · I-F-N05-02-02 (#254).
 
 ## Referencias
 

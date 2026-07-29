@@ -1,51 +1,56 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { supabase } from '@/lib/supabase';
-import type { Event } from '@/lib/types';
+import type { EventListItem } from '@/lib/types';
 
-export type { Event };
+export type { EventListItem };
 
-// Trae los eventos cuyo rango [event_start_at, event_end_at) interseca el rango
-// visible [startISO, endISO). La intersección es `start < end_visible` y
-// `end > start_visible`, así se incluyen eventos multi-día que empiezan antes
-// del rango visible pero lo cruzan. Solo se consulta el rango visible, no toda
-// la tabla (RLS ya permite SELECT a cualquier usuario autenticado).
-export function useEventsInRange(startISO: string, endISO: string) {
-  const [events, setEvents] = useState<Event[]>([]);
+// Columnas mínimas para listas/calendario (query eficiente).
+const EVENT_LIST_COLUMNS = 'id, title, event_start_at, event_end_at, all_day, color_tag, location';
+
+// Trae los eventos cuyo rango [event_start_at, event_end_at) interseca [from, to).
+// La intersección es `start < to` y `end > from`, así se incluyen eventos multi-día
+// que empiezan antes del rango visible pero lo cruzan. Solo se consulta el rango
+// pedido, no toda la tabla (RLS permite SELECT a cualquier usuario autenticado).
+export function useEventsInRange(from: Date, to: Date) {
+  const [events, setEvents] = useState<EventListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
   const fetchIdRef = useRef(0);
 
-  const fetchEvents = useCallback(async () => {
+  const fromISO = from.toISOString();
+  const toISO = to.toISOString();
+
+  const load = useCallback(async () => {
     const fetchId = ++fetchIdRef.current;
     setError(null);
 
     const { data, error: err } = await supabase
       .from('events')
-      .select('*')
-      .lt('event_start_at', endISO)
-      .gt('event_end_at', startISO)
+      .select(EVENT_LIST_COLUMNS)
+      .lt('event_start_at', toISO)
+      .gt('event_end_at', fromISO)
       .order('event_start_at', { ascending: true });
 
     if (fetchIdRef.current !== fetchId) return;
 
     if (err) {
-      setError(err.message);
+      setError(new Error(err.message));
       setLoading(false);
       return;
     }
 
     setEvents(data ?? []);
     setLoading(false);
-  }, [startISO, endISO]);
+  }, [fromISO, toISO]);
 
   useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+    load();
+  }, [load]);
 
-  const refresh = useCallback(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+  const refetch = useCallback(() => {
+    load();
+  }, [load]);
 
-  return { events, loading, error, refresh };
+  return { events, loading, error, refetch };
 }
