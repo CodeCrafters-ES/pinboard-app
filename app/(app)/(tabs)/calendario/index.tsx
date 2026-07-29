@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Calendar,
@@ -44,6 +44,16 @@ function todayKey(): string {
 function toDate(key: string): Date {
   return new Date(`${key}T00:00:00`);
 }
+
+// Tema del calendario alineado con la paleta clara de la app (tokens nun-*). La
+// app aún no tiene modo oscuro global, así que se mantiene consistente en claro.
+const CALENDAR_THEME = {
+  calendarBackground: '#FAF6EE', // nun-linen (igual que el fondo de pantalla)
+  monthTextColor: '#2C1F14', // nun-dark
+  textSectionTitleColor: '#8C7B6A', // nun-muted
+  arrowColor: '#7D5A3A', // nun-brown
+  todayTextColor: '#7D5A3A', // nun-brown
+};
 
 // ─── Celda de día custom (dots de color + "+N") ──────────────────────────────
 function CalendarDay({
@@ -99,8 +109,6 @@ function CalendarDay({
 }
 
 export default function CalendarioScreen() {
-  const scheme = useColorScheme();
-
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedDate, setSelectedDate] = useState<string>(todayKey());
   const [monthAnchor, setMonthAnchor] = useState<string>(todayKey());
@@ -136,17 +144,6 @@ export default function CalendarioScreen() {
     await refetch();
     setRefreshing(false);
   }, [refetch]);
-
-  const calendarTheme = useMemo(
-    () => ({
-      calendarBackground: scheme === 'dark' ? '#26201A' : '#F7F1E7',
-      monthTextColor: scheme === 'dark' ? '#F7F1E7' : '#4F453C',
-      textSectionTitleColor: '#8C7B6A',
-      arrowColor: '#7D5A3A',
-      todayTextColor: '#7D5A3A',
-    }),
-    [scheme],
-  );
 
   return (
     <SafeAreaView className="flex-1 bg-nun-linen" edges={['top']}>
@@ -188,7 +185,7 @@ export default function CalendarioScreen() {
             dayComponent={dayComponent}
             onDayPress={(d: DateData) => setSelectedDate(d.dateString)}
             onMonthChange={(m: DateData) => setMonthAnchor(m.dateString)}
-            theme={calendarTheme}
+            theme={CALENDAR_THEME}
           />
         ) : (
           <CalendarProvider date={selectedDate} onDateChanged={(date: string) => setSelectedDate(date)}>
@@ -197,7 +194,7 @@ export default function CalendarioScreen() {
               markingType="multi-dot"
               markedDates={marked}
               allowShadow={false}
-              theme={calendarTheme}
+              theme={CALENDAR_THEME}
             />
           </CalendarProvider>
         )}

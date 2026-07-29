@@ -141,7 +141,8 @@ hora, ubicación; pasados atenuados). Sin paginación en el MVP (volumen bajo).
 La vista mes usa un `dayComponent` custom que pinta los dots y el `+N`; la vista semana usa el marcado
 multi-dot integrado. Los eventos del día seleccionado se listan bajo el calendario con `<EventList groupBy="none">`
 (rango del día vía `getDayRange`), siguiendo el mockup de `DESIGN.md`. Pull-to-refresh recarga los dots sin
-parpadeos. Tema claro/oscuro según el sistema.
+parpadeos. El tema del calendario usa la paleta clara de la app (`CALENDAR_THEME`, tokens `nun-*`); la app no
+tiene modo oscuro global todavía, así que se mantiene consistente en claro.
 
 ### Detalle de evento — `app/(app)/(tabs)/calendario/[id].tsx`
 
