@@ -46,6 +46,22 @@ async function fetchBlob(uri: string): Promise<Blob> {
 }
 
 /**
+ * Signed read URL for a stored path in a private bucket (e.g. `event-images`).
+ * Buckets are private, so `image_url` holds the path and the read URL is signed
+ * on demand at display time. Returns null if the path can't be signed.
+ */
+export async function getSignedImageUrl(
+  bucket: ImageBucket,
+  path: string,
+): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (error || !data) return null;
+  return data.signedUrl;
+}
+
+/**
  * Resize + compress an image to WebP before upload. Caps the larger side to the
  * target's max dimension and rejects inputs over 10 MB without processing.
  */
