@@ -84,6 +84,58 @@ Administración en la propia app Expo (no hay panel web). Patrón contenedor-hoo
   (`prepareImageForUpload`), subida al bucket **privado** `event-images` en `{userId}/{timestamp}/cover.webp`;
   `image_url` guarda el path (la URL de lectura se firma al mostrar).
 
+## Vista de calendario móvil (F-N05-02)
+
+Vista **solo lectura** para todos los roles (staff incluido; RLS ya permite SELECT a `authenticated`).
+Pantalla `app/(app)/(tabs)/calendario/` con dos modos, `month` (por defecto) y `week`, que comparten el
+`selectedDate` (cambiar de modo es 1 tap y conserva el día).
+
+### Librería
+
+`react-native-calendars` (decisión 2026-07-16): cubre vista mes con dots + vista semana (strip). Se descartó
+`@howljs/react-native-calendar-kit` porque su valor añadido es la vista agenda por horas, fuera de alcance del
+MVP. El idioma se fija con `LocaleConfig` (`es`) al importar la pantalla.
+
+### Carga de datos por rango — `hooks/useEventsInRange.ts`
+
+`useEventsInRange(startISO, endISO)` trae solo los eventos cuyo rango **interseca** el rango visible, no toda
+la tabla:
+
+```
+event_start_at < endISO  AND  event_end_at > startISO
+```
+
+Es la intersección de dos intervalos semiabiertos `[start, end)`, así que incluye eventos multi-día que
+empiezan antes del rango visible pero lo cruzan. El rango del mes se acolcha ±7 días para cubrir los días de
+meses adyacentes que el grid muestra. Al cambiar de mes/semana se recalcula el rango y se recarga.
+
+### Mapeo de color y agrupación — `lib/eventsByDay.ts` (puro, testeable)
+
+- `eventsByDay(events)` agrupa por día local `YYYY-MM-DD`, **expandiendo** los multi-día a cada día cubierto
+  (el último día es el de `event_end_at − 1 ms`, respetando el fin exclusivo y los `all_day`), y ordena cada
+  día por `event_start_at`.
+- `dayDots(dayEvents)` → hasta **3** puntos con el hex de `EVENT_COLOR_META` (fuente única de color, ver arriba).
+- `overflowCount(dayEvents)` → el `+N` cuando hay **≥ 4** eventos en un día.
+- `markedDatesFor(byDay, selectedDate)` → marcado de `react-native-calendars` (dots + día seleccionado +
+  `accessibilityLabel` tipo `"12 de marzo, 2 eventos"`).
+
+La vista mes usa un `dayComponent` custom que pinta los dots y el `+N`; la vista semana usa el marcado
+multi-dot integrado. Los eventos del día seleccionado se listan **inline** bajo el calendario (tarjeta con
+barra de color lateral, título y hora; pasados atenuados), siguiendo el mockup de `DESIGN.md`. Pull-to-refresh
+recarga sin parpadeos (conserva los datos durante la recarga). Tema claro/oscuro según el sistema.
+
+### Detalle de evento — `app/(app)/(tabs)/calendario/[id].tsx`
+
+Pantalla **solo lectura** (`DESIGN.md §Detalle de evento`): portada (path del bucket privado `event-images`
+firmado con `getSignedImageUrl` de `lib/media.ts`), chip de color + label, rango, `location`, `description`, y
+botón *ghost* "Editar" visible solo para el autor o un admin → navega al editor de `admin/events/[id]/edit`.
+El stack de la sección vive en `app/(app)/(tabs)/calendario/_layout.tsx`.
+
+Tests: `__tests__/lib/eventsByDay.test.ts` (agrupación, multi-día, mapeo de color, `+N`) y
+`__tests__/hooks/useEventsInRange.test.ts` (predicados de intersección).
+
+Issues: F-N05-02 (#249) · I-F-N05-02-01 (#253).
+
 ## Referencias
 
 - Migraciones: `supabase/migrations/20260618300000_create_events_table.sql`,
