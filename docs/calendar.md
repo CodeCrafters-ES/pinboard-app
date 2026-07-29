@@ -154,6 +154,9 @@ El stack de la sección vive en `app/(app)/(tabs)/calendario/_layout.tsx`.
 Tests: `__tests__/lib/eventsByDay.test.ts` (agrupación, multi-día, mapeo de color, `+N`),
 `__tests__/lib/eventRange.test.ts` (límites de semana/mes/día), `__tests__/hooks/useEventsInRange.test.ts`
 (columnas + predicados de intersección) y `__tests__/components/EventList.test.tsx` (estados y agrupación).
+Integración (Supabase local): `__tests__/integration/eventsInRange.test.ts` valida contra la BD real que la
+query por rango solo trae eventos que interseccan `[from, to)` (incluye multi-día, `all_day` y los límites
+semiabiertos).
 
 Issues: F-N05-02 (#249) · I-F-N05-02-01 (#253) · I-F-N05-02-02 (#254).
 
