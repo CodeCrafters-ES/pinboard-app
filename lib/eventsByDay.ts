@@ -1,10 +1,10 @@
 import { EVENT_COLOR_META } from '@/lib/eventColors';
-import type { Event } from '@/lib/types';
+import type { EventListItem } from '@/lib/types';
 
 // Máximo de puntos de color por día; a partir de aquí se muestra "+N".
 export const MAX_DOTS = 3;
 
-export type EventsByDay = Record<string, Event[]>;
+export type EventsByDay = Record<string, EventListItem[]>;
 
 // Subconjunto tipado del marcado de react-native-calendars que usamos (la lib no
 // re-exporta MarkedDates desde su raíz).
@@ -29,7 +29,7 @@ export function dayKey(date: Date): string {
 // (event_end_at - 1ms), de modo que un fin exactamente a medianoche no pinta el
 // día siguiente y un all_day (…23:59:59.999) queda en su propio día.
 // Cada día se ordena por event_start_at ascendente.
-export function eventsByDay(events: Event[]): EventsByDay {
+export function eventsByDay(events: EventListItem[]): EventsByDay {
   const byDay: EventsByDay = {};
 
   for (const event of events) {
@@ -54,7 +54,7 @@ export function eventsByDay(events: Event[]): EventsByDay {
 }
 
 // Hasta MAX_DOTS puntos de color (hex de la paleta de DESIGN.md vía eventColors).
-export function dayDots(dayEvents: Event[]): { key: string; color: string }[] {
+export function dayDots(dayEvents: EventListItem[]): { key: string; color: string }[] {
   return dayEvents.slice(0, MAX_DOTS).map((e, i) => ({
     key: `${e.id}-${i}`,
     color: EVENT_COLOR_META[e.color_tag].hex,
@@ -62,7 +62,7 @@ export function dayDots(dayEvents: Event[]): { key: string; color: string }[] {
 }
 
 // Nº de eventos que exceden MAX_DOTS (el "+N"); 0 si no hay overflow.
-export function overflowCount(dayEvents: Event[]): number {
+export function overflowCount(dayEvents: EventListItem[]): number {
   return Math.max(0, dayEvents.length - MAX_DOTS);
 }
 

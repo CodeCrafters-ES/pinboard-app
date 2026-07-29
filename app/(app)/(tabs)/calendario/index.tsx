@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import {
   Calendar,
   CalendarProvider,
@@ -11,6 +10,7 @@ import {
 } from 'react-native-calendars';
 
 import { useEventsInRange } from '@/hooks/useEventsInRange';
+import { getDayRange, getRangeForView } from '@/lib/eventRange';
 import {
   dayKey,
   eventsByDay,
@@ -19,9 +19,7 @@ import {
   type EventsByDay,
   type DayMarking,
 } from '@/lib/eventsByDay';
-import { EVENT_COLOR_META } from '@/lib/eventColors';
-import type { Event } from '@/lib/types';
-import { Text } from '@/components/ui';
+import { EventList, Text } from '@/components';
 
 // ─── Locale ES (una vez al importar) ─────────────────────────────────────────
 LocaleConfig.locales.es = {
@@ -39,29 +37,12 @@ LocaleConfig.defaultLocale = 'es';
 type ViewMode = 'month' | 'week';
 type Marking = DayMarking;
 
-// ─── Rangos visibles ─────────────────────────────────────────────────────────
-// El grid del mes muestra días de meses adyacentes; se acolcha ±7 días para
-// cubrir esos eventos sin traer toda la tabla.
-function monthVisibleRange(anchor: string): { startISO: string; endISO: string } {
-  const d = new Date(`${anchor}T00:00:00`);
-  const start = new Date(d.getFullYear(), d.getMonth(), 1);
-  start.setDate(start.getDate() - 7);
-  const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-  end.setDate(end.getDate() + 7);
-  return { startISO: start.toISOString(), endISO: end.toISOString() };
-}
-
-function weekVisibleRange(anchor: string): { startISO: string; endISO: string } {
-  const d = new Date(`${anchor}T00:00:00`);
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  start.setDate(start.getDate() - start.getDay()); // domingo como inicio (RN calendars por defecto)
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7);
-  return { startISO: start.toISOString(), endISO: end.toISOString() };
-}
-
 function todayKey(): string {
   return dayKey(new Date());
+}
+
+function toDate(key: string): Date {
+  return new Date(`${key}T00:00:00`);
 }
 
 // ─── Celda de día custom (dots de color + "+N") ──────────────────────────────
@@ -117,46 +98,7 @@ function CalendarDay({
   );
 }
 
-// ─── Tarjeta de evento (lista del día) ───────────────────────────────────────
-function eventTime(event: Event): string {
-  if (event.all_day) return 'Todo el día';
-  return new Date(event.event_start_at).toLocaleTimeString('es-ES', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function isPast(event: Event): boolean {
-  return new Date(event.event_end_at) < new Date();
-}
-
-function EventCard({ event, onPress }: { event: Event; onPress: () => void }) {
-  const past = isPast(event);
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Ver evento: ${event.title}`}
-      className={`bg-white mx-4 my-1 rounded-xl overflow-hidden active:opacity-70 ${past ? 'opacity-50' : ''}`}
-    >
-      <View className="flex-row items-stretch">
-        <View className="w-1.5" style={{ backgroundColor: EVENT_COLOR_META[event.color_tag].hex }} />
-        <View className="flex-1 px-4 py-3">
-          <Text className="text-[15px] font-semibold text-nun-dark" numberOfLines={1}>
-            {event.title}
-          </Text>
-          <Text className="mt-0.5 text-xs text-nun-muted">
-            {eventTime(event)}
-            {event.location ? ` · ${event.location}` : ''}
-          </Text>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
 export default function CalendarioScreen() {
-  const router = useRouter();
   const scheme = useColorScheme();
 
   const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -164,12 +106,13 @@ export default function CalendarioScreen() {
   const [monthAnchor, setMonthAnchor] = useState<string>(todayKey());
   const [refreshing, setRefreshing] = useState(false);
 
+  // Rango visible (dots): mes ancla en monthAnchor, semana en selectedDate.
   const range = useMemo(
-    () => (viewMode === 'month' ? monthVisibleRange(monthAnchor) : weekVisibleRange(selectedDate)),
+    () => getRangeForView(viewMode, toDate(viewMode === 'month' ? monthAnchor : selectedDate)),
     [viewMode, monthAnchor, selectedDate],
   );
 
-  const { events, refresh } = useEventsInRange(range.startISO, range.endISO);
+  const { events, refetch } = useEventsInRange(range.from, range.to);
 
   const byDay = useMemo(() => eventsByDay(events), [events]);
   const marked = useMemo(() => markedDatesFor(byDay, selectedDate), [byDay, selectedDate]);
@@ -186,13 +129,13 @@ export default function CalendarioScreen() {
     [],
   );
 
-  const dayEvents = byDay[selectedDate] ?? [];
+  const selectedRange = useMemo(() => getDayRange(toDate(selectedDate)), [selectedDate]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refresh();
+    await refetch();
     setRefreshing(false);
-  }, [refresh]);
+  }, [refetch]);
 
   const calendarTheme = useMemo(
     () => ({
@@ -238,17 +181,19 @@ export default function CalendarioScreen() {
         {viewMode === 'month' ? (
           <Calendar
             current={monthAnchor}
+            firstDay={1}
+            hideExtraDays
             markingType="multi-dot"
             markedDates={marked}
             dayComponent={dayComponent}
             onDayPress={(d: DateData) => setSelectedDate(d.dateString)}
             onMonthChange={(m: DateData) => setMonthAnchor(m.dateString)}
             theme={calendarTheme}
-            hideExtraDays={false}
           />
         ) : (
           <CalendarProvider date={selectedDate} onDateChanged={(date: string) => setSelectedDate(date)}>
             <WeekCalendar
+              firstDay={1}
               markingType="multi-dot"
               markedDates={marked}
               allowShadow={false}
@@ -258,19 +203,7 @@ export default function CalendarioScreen() {
         )}
 
         <View className="mt-2 pb-8">
-          {dayEvents.length === 0 ? (
-            <View className="items-center justify-center py-10">
-              <Text className="text-nun-muted text-[15px]">No hay eventos este día.</Text>
-            </View>
-          ) : (
-            dayEvents.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                onPress={() => router.push(`/(app)/(tabs)/calendario/${event.id}`)}
-              />
-            ))
-          )}
+          <EventList from={selectedRange.from} to={selectedRange.to} groupBy="none" />
         </View>
       </ScrollView>
     </SafeAreaView>
