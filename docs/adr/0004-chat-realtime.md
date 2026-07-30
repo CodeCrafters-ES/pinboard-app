@@ -38,9 +38,10 @@ El cliente se suscribe a cambios Postgres en la tabla `messages` para el `chat_i
 
 ```sql
 create table public.chats (
-  id         uuid        primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  is_group   boolean     not null default false
+  id              uuid        primary key default gen_random_uuid(),
+  created_at      timestamptz not null default now(),
+  is_group        boolean     not null default false,
+  last_message_at timestamptz not null default now()  -- denormalizado: ordena la lista de chats
 );
 ```
 
@@ -69,11 +70,12 @@ create table public.messages (
   sender_id  uuid        not null references auth.users(id) on delete cascade,
   content    text        not null check (char_length(content) between 1 and 4000),
   created_at timestamptz not null default now(),
+  edited_at  timestamptz,
   deleted_at timestamptz
 );
 ```
 
-`deleted_at` implementa soft-delete: el cliente no muestra el mensaje si `deleted_at is not null`, pero el historial de la conversación permanece coherente (sin huecos visuales).
+`deleted_at` implementa soft-delete: el cliente no muestra el mensaje si `deleted_at is not null`, pero el historial de la conversación permanece coherente (sin huecos visuales). `edited_at` (nullable) lo fija un trigger `BEFORE UPDATE OF content` cuando cambia el texto, para mostrar la etiqueta «editado»; la ventana de edición (p. ej. 15 min) es una regla de UX en cliente, no en RLS. `chats.last_message_at` lo actualiza un trigger `AFTER INSERT` en `messages`.
 
 ---
 
@@ -160,11 +162,12 @@ create policy "messages_insert" on public.messages
     and public.is_chat_participant(chat_id)
   );
 
--- UPDATE: solo el remitente puede editar el contenido o hacer soft-delete (deleted_at)
+-- UPDATE: el remitente edita su contenido o hace soft-delete; un admin puede
+-- moderar (soft-delete) cualquier mensaje. Consistente con la matriz RBAC (ADR-002).
 create policy "messages_update" on public.messages
   for update to authenticated
-  using (sender_id = auth.uid())
-  with check (sender_id = auth.uid());
+  using (sender_id = auth.uid() or is_admin())
+  with check (sender_id = auth.uid() or is_admin());
 ```
 
 > `DELETE` físico no está permitido en ningún rol de cliente. El soft-delete (`deleted_at = now()`) pasa por la policy de UPDATE.
@@ -290,6 +293,7 @@ interface Message {
   sender_id: string;
   content: string;
   created_at: string;        // ISO 8601
+  edited_at: string | null;
   deleted_at: string | null;
   _status?: MessageStatus;   // presente solo en mensajes optimistas
 }
