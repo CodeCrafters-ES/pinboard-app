@@ -373,6 +373,78 @@ Los mensajes también viajan por Broadcast y el INSERT en Postgres lo hace el re
 
 ---
 
+## Addendum — F-N07-01 · Modelo de datos ([#275](https://github.com/CodeCrafters-ES/pinboard-app/issues/275))
+
+**Fecha:** 2026-07-31
+
+La feature #275 implementa el modelo SQL de este ADR. Durante su diseño se resolvieron tres puntos que el ADR original no detallaba o que convenía reafirmar frente a la convención más reciente del repo.
+
+### 1. Target de los FK de usuario → `auth.users(id)` (confirmado)
+
+`chat_participants.user_id` y `messages.sender_id` apuntan a `auth.users(id)`, tal como especifica el modelo SQL de arriba. Se reafirma frente a la divergencia de `posts.author_id → profiles(id)`:
+
+- `profiles.id` es un surrogate (`gen_random_uuid()`) distinto de `auth.users.id`; el puente a auth es `profiles.user_id`. Con FK a `profiles(id)`, cada policy exige un subselect correlacionado `(select id from profiles where user_id = auth.uid())`.
+- Con FK a `auth.users(id)`, la RLS es el directo `= auth.uid()`, más barato en el camino caliente de `messages` INSERT y en la reevaluación por-broadcast de Realtime.
+- Es la convención dominante del repo (`post_reactions`, `post_ratings`, `post_comments`, `engagement_sessions`, `events`). `posts` fue la excepción y forzó una migración correctiva de RLS.
+
+**Consecuencia:** la RLS de F-N07-02 usa `= auth.uid()` sin subselects. Nombre/avatar del emisor se resuelven con join `messages.sender_id = profiles.user_id` (`user_id` es `UNIQUE`).
+
+### 2. Unicidad del par 1:1
+
+No hay forma declarativa de imponer "dos filas de `chat_participants` forman un par único no ordenado". Se denormaliza el par canónico sobre `chats` y se impone con un índice único parcial:
+
+```sql
+alter table public.chats
+  add column dm_lo uuid references auth.users(id),
+  add column dm_hi uuid references auth.users(id),
+  add constraint chats_dm_pair_order check (dm_lo < dm_hi);
+
+create unique index chats_dm_pair_idx
+  on public.chats (dm_lo, dm_hi)
+  where is_group = false;
+```
+
+- El `check (dm_lo < dm_hi)` canonicaliza el orden: `(A,B)` y `(B,A)` colisionan.
+- El índice es atómico y race-free por construcción (crítico: el modal "nuevo-chat" permite que dos usuarios inicien el chat mutuo a la vez). Un trigger de validación no lo garantiza sin `pg_advisory_xact_lock`.
+- El `where is_group = false` deja los grupos futuros (`is_group` reservado) fuera de la restricción; `dm_lo/dm_hi` quedan `null`.
+- **Caveat:** el par vive denormalizado en `chats.dm_lo/hi` *y* como dos filas en `chat_participants`. Se mantiene coherente creando chat + participantes en una sola transacción/RPC.
+
+Patrón alineado con los índices parciales ya existentes en `posts` (`posts_feed_idx where deleted_at is null`).
+
+### 3. `chats.last_message_at` mantenido por trigger
+
+Para ordenar la lista "mis chats por actividad":
+
+```sql
+alter table public.chats add column last_message_at timestamptz;
+
+create index chats_activity_idx on public.chats (last_message_at desc);
+
+create or replace function public.bump_chat_last_message_at()
+returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  update public.chats
+    set last_message_at = greatest(coalesce(last_message_at, new.created_at), new.created_at)
+  where id = new.chat_id;
+  return new;
+end;
+$$;
+
+create trigger messages_touch_chat
+  after insert on public.messages
+  for each row execute function public.bump_chat_last_message_at();
+```
+
+- Atómico con el INSERT: `last_message_at` nunca diverge.
+- `chats` **no expone policy de UPDATE al cliente** (el ADR solo define SELECT/INSERT); el trigger `SECURITY DEFINER` toca la columna. Evita ensanchar la superficie de la tabla raíz del chat.
+- Sin round-trip extra en el envío optimista; compatible con la idempotencia offline (`INSERT ... ON CONFLICT DO NOTHING` no inserta fila → el trigger no dispara).
+- Mismo patrón que el trigger `set_updated_at` ya establecido en el repo (timestamp derivado mantenido server-side).
+
+---
+
 ## Referencias
 
 - [ADR-002](0002-rbac.md) — helpers `is_admin()` / `is_manager()` / `is_staff()` (reutilizados en policies de chat)

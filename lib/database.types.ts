@@ -34,6 +34,82 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_direct_pairs: {
+        Row: {
+          chat_id: string
+          user_a: string
+          user_b: string
+        }
+        Insert: {
+          chat_id: string
+          user_a: string
+          user_b: string
+        }
+        Update: {
+          chat_id?: string
+          user_a?: string
+          user_b?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_direct_pairs_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: true
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_participants: {
+        Row: {
+          chat_id: string
+          joined_at: string
+          last_read_at: string
+          user_id: string
+        }
+        Insert: {
+          chat_id: string
+          joined_at?: string
+          last_read_at?: string
+          user_id: string
+        }
+        Update: {
+          chat_id?: string
+          joined_at?: string
+          last_read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_participants_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chats: {
+        Row: {
+          created_at: string
+          id: string
+          is_group: boolean
+          last_message_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_group?: boolean
+          last_message_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_group?: boolean
+          last_message_at?: string
+        }
+        Relationships: []
+      }
       engagement_sessions: {
         Row: {
           device: string | null
@@ -132,6 +208,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      messages: {
+        Row: {
+          chat_id: string
+          content: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          sender_id: string
+        }
+        Insert: {
+          chat_id: string
+          content: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          sender_id: string
+        }
+        Update: {
+          chat_id?: string
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       post_comments: {
         Row: {
@@ -656,3 +770,4 @@ export const Constants = {
     },
   },
 } as const
+
