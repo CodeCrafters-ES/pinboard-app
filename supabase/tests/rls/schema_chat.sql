@@ -10,7 +10,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(19);
+select plan(22);
 
 -- ── Structure ──────────────────────────────────────────────────────────────
 select has_table('public', 'chats', 'chats table exists');
@@ -199,6 +199,31 @@ select is(
    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'chat_participants'),
   1,
   'chat_participants está en la publication supabase_realtime'
+);
+
+-- ── Índices de paginación (I-F-N07-01-02, #281) ──────────────────────────────
+-- Un índice no altera resultados: si se borra/renombra, ningún test funcional
+-- falla y la regresión (Seq Scan en prod) pasa desapercibida. Estos asserts fijan
+-- su existencia y forma (orden y dirección de columnas) como invariante en CI.
+select ok(
+  (select indexdef from pg_indexes
+   where schemaname = 'public' and indexname = 'messages_chat_paging_idx')
+  like '%USING btree (chat_id, created_at DESC, id DESC)%',
+  'messages_chat_paging_idx = (chat_id, created_at desc, id desc)'
+);
+
+select ok(
+  (select indexdef from pg_indexes
+   where schemaname = 'public' and indexname = 'chats_last_message_at_idx')
+  like '%USING btree (last_message_at DESC)%',
+  'chats_last_message_at_idx = (last_message_at desc)'
+);
+
+select ok(
+  (select indexdef from pg_indexes
+   where schemaname = 'public' and indexname = 'chat_participants_user_idx')
+  like '%USING btree (user_id, chat_id)%',
+  'chat_participants_user_idx = (user_id, chat_id)'
 );
 
 select * from finish();

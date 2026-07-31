@@ -20,6 +20,8 @@
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
     "supabase:test:rls": "supabase db reset && supabase test db supabase/tests/rls/",
+    "bench:chat:seed": "psql \"postgresql://postgres:postgres@127.0.0.1:54322/postgres\" -f supabase/bench/chat_bench_seed.sql",
+    "bench:chat:run": "psql \"postgresql://postgres:postgres@127.0.0.1:54322/postgres\" -f supabase/bench/chat_bench_run.sql",
     "db:reset": "supabase db reset",
     "lint:md": "markdownlint-cli2 docs/adr/**/*.md",
     "android": "expo run:android",
