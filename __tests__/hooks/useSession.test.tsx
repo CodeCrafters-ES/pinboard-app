@@ -11,6 +11,8 @@ const mockGetSession = jest.fn();
 const mockFrom = jest.fn();
 const mockAuthSignOut = jest.fn();
 const mockRegisterPushToken = jest.fn();
+const mockStartPushTokenSync = jest.fn();
+const mockStopPushTokenSync = jest.fn();
 
 jest.mock('@/lib/supabase', () => ({
   supabase: {
@@ -26,8 +28,9 @@ jest.mock('@/lib/auth', () => ({
   signOut: (...args: unknown[]) => mockAuthSignOut(...args),
 }));
 
-jest.mock('@/lib/notifications/pushToken', () => ({
+jest.mock('@/lib/notifications', () => ({
   registerPushToken: (...args: unknown[]) => mockRegisterPushToken(...args),
+  startPushTokenSync: (...args: unknown[]) => mockStartPushTokenSync(...args),
 }));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -77,7 +80,8 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockRegisterPushToken.mockResolvedValue(null);
+  mockRegisterPushToken.mockResolvedValue({ status: 'registered', token: 'ExponentPushToken[abc]' });
+  mockStartPushTokenSync.mockReturnValue(mockStopPushTokenSync);
 });
 
 describe('useSession', () => {
@@ -159,25 +163,47 @@ describe('useSession', () => {
     });
   });
 
-  it('registers push token when SIGNED_IN event fires', async () => {
+  // El registro cuelga del userId, no del evento SIGNED_IN: abrir la app con
+  // sesión persistida emite INITIAL_SESSION y el token debe registrarse igual.
+  it('registers push token once the session resolves', async () => {
     setupWithSession();
-    let capturedCallback: ((event: string, session: unknown) => void) | null = null;
-    mockOnAuthStateChange.mockImplementation((cb: (event: string, session: unknown) => void) => {
-      capturedCallback = cb;
-      return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
-    });
-    mockRegisterPushToken.mockResolvedValueOnce('ExponentPushToken[abc]');
 
     const { result } = await renderHook(() => useSession(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('authenticated'));
 
-    await act(async () => {
-      capturedCallback?.('SIGNED_IN', { user: { id: 'user-1' } });
-      await Promise.resolve();
-    });
-
     await waitFor(() => expect(mockRegisterPushToken).toHaveBeenCalledTimes(1));
     expect(mockRegisterPushToken).toHaveBeenCalledWith('user-1');
+    expect(mockStartPushTokenSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes the push registration status', async () => {
+    setupWithSession();
+    mockRegisterPushToken.mockResolvedValueOnce({ status: 'denied', token: null });
+
+    const { result } = await renderHook(() => useSession(), { wrapper });
+
+    await waitFor(() => expect(result.current.pushStatus).toBe('denied'));
+  });
+
+  it('reports error status when the registration rejects unexpectedly', async () => {
+    setupWithSession();
+    mockRegisterPushToken.mockRejectedValueOnce(new Error('boom'));
+
+    const { result } = await renderHook(() => useSession(), { wrapper });
+
+    await waitFor(() => expect(result.current.pushStatus).toBe('error'));
+  });
+
+  it('stops the push token listeners on unmount', async () => {
+    setupWithSession();
+
+    const { result, unmount } = await renderHook(() => useSession(), { wrapper });
+    await waitFor(() => expect(mockStartPushTokenSync).toHaveBeenCalledTimes(1));
+
+    expect(result.current.status).toBe('authenticated');
+    unmount();
+
+    expect(mockStopPushTokenSync).toHaveBeenCalledTimes(1);
   });
 
   // Regression: resolving the session per-consumer sent every new consumer back to
@@ -209,7 +235,7 @@ describe('useSession', () => {
     expect(mockGetSession).toHaveBeenCalledTimes(1);
   });
 
-  it('does not register push token on non-SIGNED_IN events', async () => {
+  it('does not re-register the token when the same user session refreshes', async () => {
     setupWithSession();
     let capturedCallback: ((event: string, session: unknown) => void) | null = null;
     mockOnAuthStateChange.mockImplementation((cb: (event: string, session: unknown) => void) => {
@@ -218,13 +244,24 @@ describe('useSession', () => {
     });
 
     const { result } = await renderHook(() => useSession(), { wrapper });
-    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+    await waitFor(() => expect(mockRegisterPushToken).toHaveBeenCalledTimes(1));
 
     await act(async () => {
       capturedCallback?.('TOKEN_REFRESHED', { user: { id: 'user-1' } });
       await Promise.resolve();
     });
 
+    expect(result.current.status).toBe('authenticated');
+    expect(mockRegisterPushToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not register a push token without a session', async () => {
+    setupNoSession();
+
+    const { result } = await renderHook(() => useSession(), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('unauthenticated'));
+
     expect(mockRegisterPushToken).not.toHaveBeenCalled();
+    expect(result.current.pushStatus).toBeNull();
   });
 });

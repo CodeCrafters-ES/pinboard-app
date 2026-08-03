@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 import { signOut as authSignOut } from '@/lib/auth';
-import { registerPushToken } from '@/lib/notifications/pushToken';
+import { registerPushToken, startPushTokenSync } from '@/lib/notifications';
+import type { PushRegistrationStatus } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
 import type { UserRole } from '@/lib/types';
@@ -14,6 +15,8 @@ type SessionContextValue = {
   session: Session | null;
   profile: Profile | null;
   status: SessionStatus;
+  /** Resultado del registro del push token; null mientras no hay sesión o está en curso. */
+  pushStatus: PushRegistrationStatus | null;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -28,6 +31,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [status, setStatus] = useState<SessionStatus>('loading');
+  const [pushStatus, setPushStatus] = useState<PushRegistrationStatus | null>(null);
   const userIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -48,18 +52,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, s) => {
+    } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (s) {
         userIdRef.current = s.user.id;
         const resolved = await fetchProfile(s.user.id);
         setSession(resolved?.sessionInfo ?? null);
         setProfile(resolved?.profileData ?? null);
         setStatus(resolved ? 'authenticated' : 'unauthenticated');
-
-        if (event === 'SIGNED_IN') {
-          // Fire-and-forget: errors must not block session setup
-          registerPushToken(s.user.id).catch(() => null);
-        }
       } else {
         userIdRef.current = null;
         setSession(null);
@@ -70,6 +69,33 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // El registro del push token cuelga del userId, no del evento SIGNED_IN: al abrir
+  // la app con sesión persistida supabase-js emite INITIAL_SESSION, y sin esto el
+  // dispositivo no se registraría nunca ni refrescaría `last_seen_at`.
+  const userId = session?.userId ?? null;
+  useEffect(() => {
+    if (!userId) {
+      setPushStatus(null);
+      return;
+    }
+
+    let cancelled = false;
+    registerPushToken(userId)
+      .then((result) => {
+        if (!cancelled) setPushStatus(result.status);
+      })
+      .catch(() => {
+        if (!cancelled) setPushStatus('error');
+      });
+
+    // El getter lee la ref: la sesión puede cambiar sin desmontar el listener.
+    const stopSync = startPushTokenSync(() => userIdRef.current);
+    return () => {
+      cancelled = true;
+      stopSync();
+    };
+  }, [userId]);
 
   const refreshProfile = useCallback(async () => {
     if (!userIdRef.current) return;
@@ -90,7 +116,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <SessionContext.Provider value={{ session, profile, status, refreshProfile, signOut }}>
+    <SessionContext.Provider
+      value={{ session, profile, status, pushStatus, refreshProfile, signOut }}
+    >
       {children}
     </SessionContext.Provider>
   );
