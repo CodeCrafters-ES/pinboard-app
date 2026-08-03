@@ -75,9 +75,10 @@ unique (user_id, token)
 
 Cobertura pgTAP en dos ficheros:
 
-- [`supabase/tests/rls/rls_push_tokens.sql`](../../supabase/tests/rls/rls_push_tokens.sql) — 9 assertions:
+- [`supabase/tests/rls/rls_push_tokens.sql`](../../supabase/tests/rls/rls_push_tokens.sql) — 10 assertions:
   SELECT/INSERT/UPDATE/DELETE propios, INSERT suplantando a otro usuario (`42501`), UPDATE y DELETE
-  cruzados (0 filas) y lectura completa desde `service_role`.
+  cruzados (0 filas), borrado del token de un dispositivo sin arrastrar los demás del mismo usuario
+  (el logout borra por `(user_id, token)`) y lectura completa desde `service_role`.
 - [`supabase/tests/rls/schema_push_tokens.sql`](../../supabase/tests/rls/schema_push_tokens.sql) — 13
   assertions: columnas y tipos, índice de purga, FK a `profiles` con cascade, unicidad `(user_id, token)`,
   UPSERT sin duplicados, cascade al borrar perfil y al borrar el usuario de auth, y grants de `service_role`.

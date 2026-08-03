@@ -9,7 +9,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(9);
+select plan(10);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -103,6 +103,32 @@ select lives_ok(
   $test$,
   'staff puede eliminar su propio token'
 );
+
+-- ── Logout: un dispositivo no arrastra a los demás del mismo usuario ─────────
+-- Al cerrar sesión el cliente borra por (user_id, token), no por user_id
+-- (I-F-N06-01-02): las otras filas del usuario son otros dispositivos suyos y
+-- deben seguir recibiendo push.
+
+insert into public.push_tokens (user_id, token, platform) values
+  ('aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'ExponentPushToken[staff-phone]',  'ios'),
+  ('aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'ExponentPushToken[staff-tablet]', 'android');
+
+delete from public.push_tokens
+where user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
+  and token   = 'ExponentPushToken[staff-phone]';
+
+select results_eq(
+  $test$
+    select token from public.push_tokens
+    where user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
+    order by token
+  $test$,
+  $expected$ values ('ExponentPushToken[staff-tablet]'::text) $expected$,
+  'el logout borra solo el token del dispositivo actual y respeta los demás'
+);
+
+delete from public.push_tokens
+where user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid;
 
 -- ── Cross-user: las policies own filtran, no lanzan ──────────────────────────
 -- USING recorta las filas visibles, así que UPDATE/DELETE sobre tokens ajenos
