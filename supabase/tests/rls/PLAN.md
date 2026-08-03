@@ -137,4 +137,4 @@ El PR debe incluir **policy + test en el mismo commit/rama**. No se aceptan poli
 | `engagement_sessions` (F-S00-04) | `rls_engagement_sessions.sql` | ✅ Implementado |
 | `push_tokens` (F-S00-04 / N06-01-01) | `rls_push_tokens.sql`, `schema_push_tokens.sql` | ✅ Implementado |
 | `role_audit` (F-S00-05) | `rls_role_audit.sql` | ✅ Implementado |
-| `chats` / `messages` (EPIC-N07) | _pendiente_ | ⏳ EPIC-N07 |
+| `chats` / `chat_participants` / `messages` (F-N07-02) | `rls_chat.sql`, `rls_chat_update.sql`, `schema_chat.sql` | ✅ Implementado |
