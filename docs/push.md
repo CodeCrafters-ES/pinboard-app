@@ -96,10 +96,8 @@ molestar». Es el comportamiento que se quiere para posts y eventos, así que no
 en Hito 3 se decide que el chat sí lo atraviese, habría que añadir `interruptionLevel: 'timeSensitive'` al
 mensaje de Expo y solicitar el entitlement correspondiente.
 
-> **Desajuste con ADR-003.** El ADR fija `general` con importancia `HIGH` y el canal de chat con nombre
-> «Chat» y luz `#624325`. Aquí se implementa lo que especifica I-F-N06-03-02, cuyo criterio de aceptación
-> pide explícitamente importancia **normal** para `general`, nombre «Mensajes de chat» y luz `#5B97B4`.
-> Conviene actualizar el ADR para que refleje lo implementado.
+Los valores canónicos viven en [ADR-003](adr/0003-push-deep-linking.md), revisado el 2026-08-04 para
+recoger lo implementado aquí.
 
 ## Database Webhooks
 
