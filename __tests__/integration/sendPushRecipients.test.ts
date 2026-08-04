@@ -116,10 +116,14 @@ describe('send-push recipients (integration)', () => {
       expect(tokens.map((t) => t.token)).toContain(`ExponentPushToken[${RUN_MARKER}-manager]`);
     });
 
+    // Se filtra por el marcador de esta ejecución: otras suites de integración usan
+    // los mismos usuarios del seed y podrían tener tokens vivos a la vez.
     it('devuelve los varios dispositivos de un mismo destinatario', async () => {
       const tokens = await recipientTokens(db, managerUserId);
 
-      const staffTokens = tokens.filter((t) => t.user_id === staffUserId);
+      const staffTokens = tokens.filter(
+        (t) => t.user_id === staffUserId && t.token.includes(RUN_MARKER),
+      );
       expect(staffTokens).toHaveLength(2);
     });
 
@@ -134,7 +138,7 @@ describe('send-push recipients (integration)', () => {
     it('devuelve token, user_id y platform', async () => {
       const tokens = await recipientTokens(db, managerUserId);
 
-      expect(tokens[0]).toEqual({
+      expect(tokens.find((t) => t.token.includes(RUN_MARKER))).toEqual({
         token: expect.any(String),
         user_id: expect.any(String),
         platform: expect.stringMatching(/^(ios|android|web)$/),
