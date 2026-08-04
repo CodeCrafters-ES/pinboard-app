@@ -3,7 +3,8 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { z } from 'npm:zod@3.23.8'
 
-import { EXPO_PUSH_URL, sendExpoBatch, type SendResult } from './expo.ts'
+import { processTickets, type PurgeDb } from '../_shared/push/purge.ts'
+import { EXPO_PUSH_URL, sendExpoBatch } from './expo.ts'
 import { eventMessage, postMessage } from './messages.ts'
 import { authorUserId, recipientTokens, type PushDb } from './recipients.ts'
 
@@ -147,21 +148,39 @@ function shouldNotify(payload: Payload): Notify | Skip {
 
 // ─── Handlers por tabla ───────────────────────────────────────────────────────
 
-type DispatchResult = { sent_count: number; failed_count: number; pending?: true }
+type DispatchResult = {
+  sent_count: number
+  failed_count: number
+  purged_count?: number
+  pending?: true
+}
 
 // service_role para saltarse RLS: los tokens son "own" y ningún usuario puede leer
 // los del resto, que es justo lo que hace falta aquí.
-function adminClient(): PushDb {
-  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY) as unknown as PushDb
+function adminClient(): PushDb & PurgeDb {
+  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY) as unknown as PushDb & PurgeDb
 }
 
 async function deliver(
-  db: PushDb,
+  db: PushDb & PurgeDb,
   excludeUserId: string | null,
   message: ReturnType<typeof postMessage>,
-): Promise<SendResult> {
+): Promise<DispatchResult> {
   const tokens = await recipientTokens(db, excludeUserId)
-  return sendExpoBatch({ tokens, message, url: EXPO_URL })
+  const { sent_count, failed_count, tickets } = await sendExpoBatch({
+    tokens,
+    message,
+    url: EXPO_URL,
+  })
+
+  // Expo ya dice aquí qué tokens no existen; el resto se sabrá con los receipts,
+  // que consulta process-push-receipts a partir de la cola.
+  const { purged_count, enqueued_count, reasons } = await processTickets(db, tickets)
+  if (purged_count > 0 || Object.keys(reasons).length > 0) {
+    console.log('send-push purge', { purged_count, enqueued_count, reasons })
+  }
+
+  return { sent_count, failed_count, purged_count }
 }
 
 async function handlePostInsert(
@@ -170,8 +189,7 @@ async function handlePostInsert(
   const db = adminClient()
   // posts.author_id es profiles.id; push_tokens.user_id es auth.uid().
   const author = await authorUserId(db, record.author_id)
-  const { sent_count, failed_count } = await deliver(db, author, postMessage(record))
-  return { sent_count, failed_count }
+  return deliver(db, author, postMessage(record))
 }
 
 async function handleEventInsert(
@@ -179,8 +197,7 @@ async function handleEventInsert(
 ): Promise<DispatchResult> {
   const db = adminClient()
   // events.author_id ya es auth.users(id): sin rodeo por profiles.
-  const { sent_count, failed_count } = await deliver(db, record.author_id, eventMessage(record))
-  return { sent_count, failed_count }
+  return deliver(db, record.author_id, eventMessage(record))
 }
 
 // Hito 3 (EPIC-N07 / F-N07-05): el contrato queda cerrado desde ahora para que

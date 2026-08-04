@@ -466,6 +466,42 @@ export type Database = {
         }
         Relationships: []
       }
+      push_receipts_pending: {
+        Row: {
+          enqueued_at: string
+          ticket_id: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          enqueued_at?: string
+          ticket_id: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          enqueued_at?: string
+          ticket_id?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_receipts_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "push_receipts_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           created_at: string
@@ -786,3 +822,4 @@ export const Constants = {
     },
   },
 } as const
+

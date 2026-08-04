@@ -130,6 +130,49 @@ psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
   -f supabase/webhooks/send_push_webhooks.sql
 ```
 
+## Purga de tokens inválidos
+
+Un token deja de valer cuando el usuario desinstala la app o el sistema lo rota sin que la app llegue a
+avisar. Expo lo comunica en dos momentos, y ambos se aprovechan:
+
+| Momento | Quién | Qué hace |
+|---|---|---|
+| Al enviar | `send-push` | Los tickets que ya vuelven con error se procesan en el acto |
+| ~15 min después | `process-push-receipts` | Consulta los _receipts_ y purga lo que Expo dé por perdido |
+
+El criterio es el mismo en los dos sitios: `DeviceNotRegistered` e `InvalidCredentials` borran la fila
+`(user_id, token)`; `MessageTooBig` y `MessageRateExceeded` solo se registran, porque el token está sano; un
+código desconocido **no** purga, que reenviar sale más barato que perder el dispositivo de alguien.
+
+El borrado va siempre por el par `(user_id, token)`, nunca por token suelto: dos usuarios pueden compartir
+token si alguien cerró sesión sin red y otro inició sesión en ese mismo dispositivo.
+
+`push_receipts_pending` es la cola que une ambos momentos: guarda qué ticket corresponde a qué dispositivo.
+Tiene RLS activo y **cero policies**, así que ningún cliente la ve; solo entran las Edge Functions con
+`service_role`.
+
+### Programar el job
+
+```bash
+psql "$DB_URL" \
+  -v url="https://<ref>.supabase.co/functions/v1/process-push-receipts" \
+  -v secret="<el mismo PUSH_WEBHOOK_SECRET>" \
+  -f supabase/schedules/process_push_receipts.sql
+```
+
+Crea un job horario de `pg_cron` que llama a la función con `net.http_post`, que es asíncrono: el worker de
+cron encola la petición y termina. Reejecutar el script reprograma el job con la URL o el secreto nuevos.
+
+Para comprobarlo: `select jobname, schedule, active from cron.job;` y, tras la siguiente hora en punto,
+`select * from cron.job_run_details order by start_time desc limit 5;`.
+
+La función también se puede invocar a mano, que es lo cómodo al depurar:
+
+```bash
+curl -X POST "$SUPABASE_URL/functions/v1/process-push-receipts" \
+  -H "Authorization: Bearer $PUSH_WEBHOOK_SECRET"
+```
+
 ### Fallback sin Database Webhooks
 
 Si la integración de webhooks no estuviera disponible en un proyecto, el mismo efecto se consigue con un
@@ -171,3 +214,6 @@ El payload es idéntico, así que la Edge Function no cambia. `net.http_post` es
 | La función responde `401` sin llegar al código | Falta `verify_jwt = false` / `--no-verify-jwt`: la plataforma rechaza el Bearer porque no es un JWT del proyecto |
 | Publicar un borrador no notifica | El trigger de `posts` debe escuchar `UPDATE OF status`, no solo `INSERT` |
 | Llega el push por duplicado | Reintento de `pg_net` servido por otro worker: la deduplicación es por worker (ventana de 60 s) |
+| Un dispositivo desinstalado sigue recibiendo envíos | El job de receipts no corre: `select * from cron.job` y revisa `cron.job_run_details` |
+| `push_receipts_pending` crece sin parar | El job no llega a la cola (secreto o URL mal) o Expo no responde; los tickets se sueltan solos a las 24 h |
+| Se purgó un token que sí valía | Revisa el `reason` en los logs: solo `DeviceNotRegistered` e `InvalidCredentials` borran |

@@ -5,6 +5,7 @@
 
 // Extensión explícita porque Deno la exige en imports relativos; Jest y tsc la
 // resuelven igual (`allowImportingTsExtensions` en tsconfig.json).
+import type { ExpoTicket } from '../_shared/push/tickets.ts'
 import type { PushMessage } from './messages.ts'
 
 export const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
@@ -14,15 +15,8 @@ export const EXPO_BATCH_SIZE = 100
 
 export type PushTokenRow = { token: string; user_id: string; platform: string }
 
-/** Acuse por mensaje. `DeviceNotRegistered` lo consume la purga (I-F-N06-02-03). */
-export type ExpoTicket = {
-  status: 'ok' | 'error'
-  id?: string
-  message?: string
-  details?: { error?: string }
-  /** Añadido aquí, no por Expo: los tickets llegan en el orden de envío. */
-  token?: string
-}
+// El tipo vive en `_shared` porque también lo consume process-push-receipts.
+export type { ExpoTicket } from '../_shared/push/tickets.ts'
 
 export type SendResult = {
   sent_count: number
@@ -101,7 +95,7 @@ export async function sendExpoBatch({
       batch.forEach((row, i) => {
         // Un ticket ausente es un fallo: Expo devuelve uno por mensaje enviado.
         const ticket: ExpoTicket = data[i] ?? { status: 'error', message: 'missing ticket' }
-        tickets.push({ ...ticket, token: row.token })
+        tickets.push({ ...ticket, token: row.token, user_id: row.user_id })
         if (ticket.status === 'ok') sent += 1
         else failed += 1
       })

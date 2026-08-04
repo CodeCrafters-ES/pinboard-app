@@ -287,3 +287,60 @@ describe('send-push Edge Function (integration)', () => {
     expect(Date.now() - startedAt).toBeLessThan(5000);
   });
 });
+
+// El drenaje de la cola se prueba contra la base en pushReceipts.test.ts; aquí solo
+// el contrato HTTP con el que lo invoca el cron (I-F-N06-02-03).
+describe('process-push-receipts Edge Function (integration)', () => {
+  const RECEIPTS_URL = 'http://127.0.0.1:54321/functions/v1/process-push-receipts';
+
+  async function callReceipts(secret: string | null, method = 'POST'): Promise<FnResponse> {
+    let last: FnResponse = { status: 0, body: null };
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const res = await fetch(RECEIPTS_URL, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+          },
+          ...(method === 'POST' ? { body: '{}' } : {}),
+        });
+        last = { status: res.status, body: await res.json().catch(() => null) };
+        if (res.status < 500) return last;
+      } catch (e) {
+        last = { status: 0, body: { error: String(e) } };
+      }
+      if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS);
+    }
+
+    return last;
+  }
+
+  it('rechaza sin cabecera Authorization', async () => {
+    const { status, body } = await callReceipts(null);
+
+    expect(status).toBe(401);
+    expect(body).toEqual({ error: 'Unauthorized' });
+  });
+
+  it('rechaza con un secreto incorrecto', async () => {
+    expect((await callReceipts('not-the-secret')).status).toBe(401);
+  });
+
+  it('rechaza métodos distintos de POST', async () => {
+    expect((await callReceipts(WEBHOOK_SECRET, 'GET')).status).toBe(405);
+  });
+
+  it('devuelve el resumen del drenaje', async () => {
+    const { status, body } = await callReceipts(WEBHOOK_SECRET);
+
+    expect(status).toBe(200);
+    expect(body).toMatchObject({
+      ok: true,
+      processed: expect.any(Number),
+      purged_count: expect.any(Number),
+      expired_count: expect.any(Number),
+    });
+  });
+});
