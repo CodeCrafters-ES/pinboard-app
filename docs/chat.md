@@ -23,17 +23,20 @@ enmascara `content` en cliente); no se filtra por `deleted_at is null`.
 | `messages_chat_paging_idx` | `messages (chat_id, created_at desc, id desc)` | Paginación cursor-based del hilo |
 | `chats_last_message_at_idx` | `chats (last_message_at desc)` | Ordenar "mis chats" por actividad |
 | `chat_participants_user_idx` | `chat_participants (user_id, chat_id)` | Resolver los chats de un usuario + `is_chat_participant()` |
+| `messages_active_idx` | `messages (chat_id, created_at) where deleted_at is null` | Conteo de no leídos por chat (F-N07-03, `my_chats_v`) |
 
 **`messages.chat_id` no tenía índice** (Postgres no lo crea para la FK): sin `messages_chat_paging_idx` la
 paginación haría un Seq Scan de toda la tabla.
 
-### Por qué NO hay índice parcial de mensajes activos
+### El índice parcial de mensajes activos
 
-El issue #281 proponía además `messages_active_idx (chat_id, created_at desc) where deleted_at is null`. Se
-**descarta a propósito**: como la paginación muestra los mensajes borrados (ver arriba), la query no filtra por
-`deleted_at is null` y ya la cubre `messages_chat_paging_idx`. No existe hoy ninguna query que lea solo
-mensajes activos, así que el índice parcial sería peso muerto en cada `INSERT`/soft-delete. Se añadirá junto a
-la query que lo justifique (p. ej. el conteo de no leídos de F-N07-03) si surge la necesidad.
+`messages_active_idx (chat_id, created_at) where deleted_at is null` (migración
+`20260805100000_chat_unread_counts.sql`) es el índice parcial que #281 dejó **reservado** a propósito. Se
+descartó entonces porque la paginación muestra los mensajes borrados y por tanto no filtra por
+`deleted_at is null` — no había query que leyera solo mensajes activos. El **conteo de no leídos** de
+`my_chats_v` es exactamente esa query (filtra `deleted_at is null` y un rango `created_at > last_read_at` por
+chat), así que ahora el índice tiene consumidor: excluye las filas borradas del índice y sirve el rango por chat
+sin tocar `messages_chat_paging_idx`.
 
 ## Queries de referencia
 
@@ -121,6 +124,48 @@ solapar dos canales con el mismo topic:
 
 Ambos hooks hacen `supabase.removeChannel(channel)` y quitan el listener de `AppState` en el cleanup del
 efecto, así que no quedan canales activos al salir del chat.
+
+## No leídos (`my_chats_v` + `useUnreadCount`)
+
+El contador de no leídos por chat (I-F-N07-03-03) no persiste estado nuevo: se deriva de
+`chat_participants.last_read_at` (ya existente) contra `messages`.
+
+### Vista `my_chats_v` (`20260805100000_chat_unread_counts.sql`)
+
+```sql
+create view public.my_chats_v with (security_invoker = true) as
+select c.id as chat_id, c.is_group, c.last_message_at, cp.last_read_at,
+       (select count(*) from public.messages m
+         where m.chat_id = c.id
+           and m.created_at > cp.last_read_at
+           and m.sender_id <> cp.user_id
+           and m.deleted_at is null)::int as unread_count
+from public.chats c
+join public.chat_participants cp on cp.chat_id = c.id and cp.user_id = auth.uid();
+```
+
+- **`security_invoker = true`** (PG15+): la vista corre con la RLS del usuario que consulta, no del owner. El
+  `join ... on cp.user_id = auth.uid()` acota las filas a mis chats y el subquery de mensajes se ve filtrado
+  por la policy `messages_select_participant`.
+- **`unread_count`** cuenta mensajes posteriores a **mi** `last_read_at`, enviados por **otro** (`sender_id <>
+  cp.user_id`) y **no borrados**. Es por-espectador: los dos participantes de un chat ven contadores distintos.
+- Edge cases: chat sin mensajes → `0`; el propio remitente nunca infla su unread (self-sent excluido).
+
+### Hook `useUnreadCount`
+
+- Lee `my_chats_v` (`listMyChats`) y devuelve `{ chats, totalUnread, markAsRead, refresh, loading, error }`.
+- **Refetch en tiempo real**: se suscribe a `postgres_changes` INSERT de `messages` (canal `unread:messages`,
+  sin filtro). Realtime respeta la RLS, así que solo llegan mensajes de mis chats; cada INSERT dispara un
+  refetch de la vista.
+- **`markAsRead(chatId)`**: pone el badge a `0` de forma **optimista** y persiste `last_read_at = now()`
+  (`markChatAsRead`) con **throttle de 2 s por chat** (`MARK_READ_THROTTLE_MS`): la primera llamada escribe al
+  vuelo; las siguientes dentro de la ventana se colapsan en un único flush al borde que persiste el `now()`
+  final. Se dispara al abrir el chat y al llegar al fondo del hilo (scroll bottom).
+
+### Badge `UnreadBadge`
+
+Componente `components/ui/UnreadBadge` (`count`, `max = 99`): no renderiza nada cuando `count <= 0` (el badge se
+oculta en 0) y satura a `max`+ (p. ej. `99+`). La lista de chats lo pinta con `unread_count`.
 
 ## Benchmark (validación de umbrales)
 

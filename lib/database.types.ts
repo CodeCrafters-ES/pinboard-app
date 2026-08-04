@@ -594,6 +594,16 @@ export type Database = {
       }
     }
     Views: {
+      my_chats_v: {
+        Row: {
+          chat_id: string | null
+          is_group: boolean | null
+          last_message_at: string | null
+          last_read_at: string | null
+          unread_count: number | null
+        }
+        Relationships: []
+      }
       post_engagement_daily: {
         Row: {
           avg_rating: number | null
