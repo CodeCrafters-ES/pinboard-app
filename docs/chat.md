@@ -91,6 +91,40 @@ El cursor identifica de forma inequívoca la última fila entregada mediante la 
 - El cursor **no** codifica dirección ni tamaño de página: la dirección es siempre "hacia atrás en el tiempo"
   y el tamaño es fijo (30).
 
+## Presencia y typing (canales efímeros)
+
+Presence (online/offline) y typing viajan por **Supabase Realtime** y **no se persisten en BD**. Se usan
+**topics propios** por chat, distintos del `chat:<chatId>` que `useChat` usa para `postgres_changes`, para no
+solapar dos canales con el mismo topic:
+
+| Hook | Topic | Mecanismo | Devuelve |
+|---|---|---|---|
+| `usePresence(chatId)` | `presence:<chatId>` | Realtime **Presence** (`track`/`presenceState`, key = `userId`) | `onlineUserIds: string[]` |
+| `useTyping(chatId)` | `typing:<chatId>` | Realtime **Broadcast** (event `typing`) | `typingUserIds: string[]`, `setTyping(isTyping)` |
+
+### Contrato del broadcast `typing`
+
+```jsonc
+// channel.send({ type: 'broadcast', event: 'typing', payload })
+{ "user_id": "<uuid del emisor>", "isTyping": true }
+```
+
+- El receptor **ignora su propio eco** (`payload.user_id === userId`).
+- `setTyping(true)` emite `true` en el primer keypress; **debounce** de 3s de inactividad → emite `false`.
+  `setTyping(false)` (o pasar la app a **background**) fuerza `false` inmediatamente.
+
+### Presencia
+
+- Al `SUBSCRIBED` se hace `channel.track({ at })`; `presenceState()` en el evento `sync` da los presentes
+  (las **claves** de presence son el `userId`).
+- **Background** → `untrack()`; **volver a activo** → `track()` de nuevo. Supabase retira por heartbeat a los
+  ~30s sin conexión.
+
+### Limpieza
+
+Ambos hooks hacen `supabase.removeChannel(channel)` y quitan el listener de `AppState` en el cleanup del
+efecto, así que no quedan canales activos al salir del chat.
+
 ## No leídos (`my_chats_v` + `useUnreadCount`)
 
 El contador de no leídos por chat (I-F-N07-03-03) no persiste estado nuevo: se deriva de
