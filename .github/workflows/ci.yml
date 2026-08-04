@@ -105,7 +105,9 @@ jobs:
           version: 2.108.0
       - run: supabase start
       # `supabase start` no sirve las Edge Functions: hay que arrancarlas aparte
-      # para que el test de integración de track-engagement pueda alcanzarlas.
+      # para que los tests de integración puedan alcanzarlas. Se sirven todas (sin
+      # nombre) porque ya son varias — track-engagement y send-push —, y el
+      # env-file aporta PUSH_WEBHOOK_SECRET, que send-push exige para autenticar.
       # Se sirve en background dentro del mismo step (así el proceso sigue vivo
       # durante los tests) y se CALIENTA antes de lanzar Jest.
       #
@@ -117,7 +119,8 @@ jobs:
       # caro ya está caliente, y el cold start se paga aquí y no en un timeout de Jest.
       - name: Serve edge functions and run integration tests
         run: |
-          supabase functions serve track-engagement --no-verify-jwt > /tmp/functions.log 2>&1 &
+          supabase functions serve --no-verify-jwt \
+            --env-file supabase/functions/.env.test > /tmp/functions.log 2>&1 &
 
           # `status -o json` es estable entre versiones de la CLI; el parseo de
           # `-o env` no lo era y dejaba ANON_KEY vacío en silencio.
