@@ -1,12 +1,14 @@
-# Notificaciones push — cliente
+# Notificaciones push
 
-Documentación del cliente de push (EPIC-N06, feature F-N06-01). Cubre el **ciclo de vida del Expo Push Token**
-en la app: permisos, registro, refresco y borrado (I-F-N06-01-02). El esquema de `push_tokens` y sus policies
-viven en las migraciones (`20260618700000`, `20260618800000`, `20260716000002`, `20260801000000`) y la matriz
-de RLS en [`docs/rls/push_tokens.md`](rls/push_tokens.md).
+Documentación de push (EPIC-N06). Cubre el **ciclo de vida del Expo Push Token** en la app —permisos,
+registro, refresco y borrado (I-F-N06-01-02)— y el **disparo desde la base de datos** hacia la Edge Function
+`send-push` (I-F-N06-02-01). El esquema de `push_tokens` y sus policies viven en las migraciones
+(`20260618700000`, `20260618800000`, `20260716000002`, `20260801000000`) y la matriz de RLS en
+[`docs/rls/push_tokens.md`](rls/push_tokens.md); el contrato de la función, en
+[`supabase/functions/send-push/README.md`](../supabase/functions/send-push/README.md).
 
-El envío (`send-push`), los webhooks de BD, la purga de tokens inválidos y el deep-linking se documentan con
-sus issues (F-N06-02 y F-N06-03).
+La resolución de destinatarios y el envío a Expo (I-F-N06-02-02), la purga de tokens inválidos
+(I-F-N06-02-03) y el deep-linking (F-N06-03) se documentan con sus issues.
 
 ## Piezas
 
@@ -69,6 +71,92 @@ sus issues (F-N06-02 y F-N06-03).
 notificaciones con la app en primer plano (`shouldShowAlert`, `shouldPlaySound`; sin badge en el MVP).
 Es el punto donde I-F-N06-03-02 enganchará `ensureAndroidChannels()` con los canales `general` y `chat`.
 
+## Database Webhooks
+
+Los "Database Webhooks" de Supabase no son un servicio aparte: son **triggers** que llaman a
+`supabase_functions.http_request` (pg_net). Se pueden crear desde Studio, pero aquí se versionan como script
+para que un entorno nuevo se configure igual y sin clics:
+[`supabase/webhooks/send_push_webhooks.sql`](../supabase/webhooks/send_push_webhooks.sql).
+
+| Trigger | Tabla | Eventos | Estado |
+|---|---|---|---|
+| `posts_send_push` | `public.posts` | `INSERT`, `UPDATE OF status` | Activo |
+| `events_send_push` | `public.events` | `INSERT` | Activo |
+| `messages_send_push` | `public.messages` | `INSERT` | Hito 3 (`-v enable_messages=true`) |
+
+`posts` escucha también el `UPDATE` porque los posts nacen como borrador y se publican después
+(`hooks/usePosts.ts`): con un webhook solo de `INSERT`, publicar no notificaría a nadie. Qué merece push y qué
+no lo decide la función, no el trigger — ver la tabla de notificabilidad en su README.
+
+### Configurar un entorno nuevo
+
+1. **Publicar el secreto** en la función:
+
+   ```bash
+   openssl rand -base64 32                       # genera el secreto
+   npx supabase secrets set PUSH_WEBHOOK_SECRET=<secreto> --project-ref <ref>
+   ```
+
+2. **Desplegar la función.** `verify_jwt = false` ya está en `supabase/config.toml`; con `--no-verify-jwt` se
+   fuerza también desde el deploy:
+
+   ```bash
+   npx supabase functions deploy send-push --no-verify-jwt --project-ref <ref>
+   ```
+
+3. **Crear los triggers** con el mismo secreto:
+
+   ```bash
+   psql "$DB_URL" \
+     -v url="https://<ref>.supabase.co/functions/v1/send-push" \
+     -v secret="<secreto>" \
+     -f supabase/webhooks/send_push_webhooks.sql
+   ```
+
+   El script termina listando los triggers creados. Es idempotente: reejecutarlo rota el secreto o cambia la
+   URL sin duplicar nada.
+
+4. **Comprobar** insertando un post publicado y mirando los logs de la función (Studio → Edge Functions →
+   `send-push`, o `supabase functions logs send-push`). Debe aparecer una línea `send-push` con el
+   `record_id` correspondiente.
+
+En **local** la URL tiene que resolverse desde el contenedor de Postgres, así que se usa el gateway interno:
+
+```bash
+npx supabase functions serve --env-file supabase/functions/.env.test
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -v url="http://kong:8000/functions/v1/send-push" \
+  -v secret="local-test-webhook-secret" \
+  -f supabase/webhooks/send_push_webhooks.sql
+```
+
+### Fallback sin Database Webhooks
+
+Si la integración de webhooks no estuviera disponible en un proyecto, el mismo efecto se consigue con un
+trigger propio y `pg_net.http_post` — que es exactamente lo que hace por dentro `http_request`:
+
+```sql
+create or replace function public.notify_send_push() returns trigger
+language plpgsql security definer as $$
+begin
+  perform net.http_post(
+    url     := current_setting('send_push.url'),
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || current_setting('send_push.secret')
+    ),
+    body    := jsonb_build_object(
+      'type', tg_op, 'table', tg_table_name, 'schema', tg_table_schema,
+      'record', to_jsonb(new), 'old_record', case when tg_op = 'UPDATE' then to_jsonb(old) end
+    )
+  );
+  return null;
+end $$;
+```
+
+El payload es idéntico, así que la Edge Function no cambia. `net.http_post` es asíncrono: no bloquea el
+`INSERT` ni lo revierte si la función falla.
+
 ## Troubleshooting
 
 | Síntoma | Causa habitual |
@@ -78,3 +166,8 @@ Es el punto donde I-F-N06-03-02 enganchará `ensureAndroidChannels()` con los ca
 | Fila duplicada tras reinstalar la app | Esperado: el token cambia y la fila vieja se purga por `last_seen_at` |
 | El usuario deja de recibir push sin haber hecho logout | Token rotado sin que el listener llegara a escribir; se corrige al siguiente arranque con sesión |
 | `platform` admite `'web'` pero no hay push web | El check de la columna se mantiene por compatibilidad; el push web está fuera del alcance del EPIC |
+| El INSERT funciona pero la función no recibe nada | El trigger no existe (`select * from information_schema.triggers where trigger_name like '%send_push'`) o la URL no se resuelve desde el contenedor de Postgres |
+| La función responde `401` al webhook | El secreto del trigger y `PUSH_WEBHOOK_SECRET` no coinciden: reejecuta el script con el valor correcto |
+| La función responde `401` sin llegar al código | Falta `verify_jwt = false` / `--no-verify-jwt`: la plataforma rechaza el Bearer porque no es un JWT del proyecto |
+| Publicar un borrador no notifica | El trigger de `posts` debe escuchar `UPDATE OF status`, no solo `INSERT` |
+| Llega el push por duplicado | Reintento de `pg_net` servido por otro worker: la deduplicación es por worker (ventana de 60 s) |
