@@ -497,7 +497,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "push_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       role_audit: {
         Row: {
@@ -626,6 +641,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       is_admin: { Args: never; Returns: boolean }
+      is_chat_participant: { Args: { p_chat_id: string }; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       refresh_post_engagement_daily: { Args: never; Returns: undefined }
@@ -770,4 +786,3 @@ export const Constants = {
     },
   },
 } as const
-

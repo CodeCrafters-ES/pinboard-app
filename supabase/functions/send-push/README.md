@@ -5,12 +5,25 @@ Postgres avisa a esta función cuando se publica un post o se crea un evento, y 
 resuelve destinatarios y llama a la Expo Push API. Implementa el payload de
 [ADR-003](../../../docs/adr/0003-push-deep-linking.md).
 
-**Issue:** I-F-N06-02-01 (#269) · **Feature:** F-N06-02 (#265)
+**Issues:** I-F-N06-02-01 (#269), I-F-N06-02-02 (#270) · **Feature:** F-N06-02 (#265)
 
-> **Estado.** Esta issue entrega el **transporte**: autenticación, validación,
-> idempotencia y respuesta rápida. Los handlers por tabla son stubs que loguean y
-> devuelven `pending: true`; I-F-N06-02-02 (#270) implementa destinatarios y envío a
-> Expo, e I-F-N06-02-03 (#271) la purga de tokens inválidos.
+> **Estado.** Transporte y envío implementados. Queda I-F-N06-02-03 (#271): purgar de
+> `push_tokens` los tokens cuyos tickets vuelvan con `DeviceNotRegistered`. El handler
+> de `messages` es un stub hasta Hito 3 (F-N07-05).
+
+## Módulos
+
+| Fichero | Rol |
+|---|---|
+| `index.ts` | Autenticación, validación, idempotencia y orquestación |
+| `messages.ts` | Copy en ES, fecha en `Europe/Madrid`, truncado a 120 caracteres |
+| `expo.ts` | Llamada a la Expo Push API en lotes de 100 y recolección de tickets |
+| `recipients.ts` | Destinatarios: mapeo del autor y tokens excluyéndolo |
+
+`messages.ts`, `expo.ts` y `recipients.ts` no importan nada de Deno —el cliente
+Supabase y `fetch` llegan por parámetro—, así que los tests de Jest los ejercitan
+directamente. De ahí la extensión explícita en los imports relativos: Deno la exige y
+`allowImportingTsExtensions` deja que tsc y Jest la resuelvan igual.
 
 ## Contrato
 
@@ -67,6 +80,32 @@ La transición `draft → published` **no es opcional**: los posts se crean como
 y se publican después (`hooks/usePosts.ts`), así que colgar el push solo del `INSERT`
 dejaría sin notificar el flujo real de publicación.
 
+## Destinatarios y contenido
+
+| Evento | Destinatarios | Título | Cuerpo |
+|---|---|---|---|
+| Post publicado | Todos los tokens menos los del autor | `Nuevo post` | Título del post (≤120) |
+| Evento nuevo | Todos los tokens menos los del autor | `Nuevo evento` | `Título · vie 24 jul, 17:00` |
+| Mensaje (Hito 3) | Participantes del chat ≠ autor | Nombre del emisor | Extracto del mensaje |
+
+`data` sigue ADR-003: `{ type: 'post' | 'event' | 'chat', id }`. Canal `general`
+(`chat` en Hito 3, con `priority: high`).
+
+**Exclusión del autor.** `posts.author_id` referencia `profiles.id`, mientras que
+`push_tokens.user_id` guarda `auth.uid()`: hace falta traducir uno en otro leyendo
+`profiles`, que es la única tabla con esa doble identidad. `events.author_id` ya es
+`auth.users(id)` y se usa directamente. Por eso `service_role` necesita `SELECT` sobre
+`profiles` (migración `20260804000000`); sin él, el autor recibiría su propia
+publicación.
+
+No se filtra por rol ni por "usuario activo": `push_tokens` cascadea desde `profiles`,
+así que un perfil borrado se lleva sus tokens por delante.
+
+**Envío.** Lotes de 100 (límite de Expo). Un lote que falla no aborta los demás: sus
+tokens cuentan en `failed_count` y el bucle sigue. Sin destinatarios no se llama a
+Expo. Los tickets se devuelven con su token asociado, que es lo que necesitará la
+purga de #271.
+
 ## Respuestas
 
 | Código | Caso |
@@ -104,7 +143,9 @@ JSON estructurado, un evento por request:
 | Variable | Uso |
 |---|---|
 | `PUSH_WEBHOOK_SECRET` | Secreto compartido con el trigger. `supabase secrets set PUSH_WEBHOOK_SECRET=…` |
-| `SUPABASE_SERVICE_ROLE_KEY` | La inyecta la plataforma; alternativa aceptada como Bearer y necesaria para leer `push_tokens` (#270). |
+| `SUPABASE_SERVICE_ROLE_KEY` | La inyecta la plataforma; alternativa aceptada como Bearer y necesaria para leer `profiles` y `push_tokens`. |
+| `SUPABASE_URL` | La inyecta la plataforma. |
+| `EXPO_PUSH_URL` | Opcional. Redirige el envío a un doble; por defecto, la Expo Push API. |
 
 Los pasos para crear los webhooks en un entorno nuevo están en
 [`docs/push.md`](../../../docs/push.md#database-webhooks); el script reproducible es
@@ -112,11 +153,20 @@ Los pasos para crear los webhooks en un entorno nuevo están en
 
 ## Tests
 
-`__tests__/integration/sendPush.test.ts` (job `integration-test`): auth, validación,
-notificabilidad, idempotencia y tiempo de respuesta.
+| Fichero | Cubre | Job |
+|---|---|---|
+| `__tests__/lib/sendPushMessages.test.ts` | Copy, truncado y fecha localizada | `test` |
+| `__tests__/lib/sendPushExpo.test.ts` | Troceado en 100, tickets y errores parciales (`fetch` mockeado) | `test` |
+| `__tests__/integration/sendPushRecipients.test.ts` | Mapeo del autor y exclusión, contra la BD local | `integration-test` |
+| `__tests__/integration/sendPush.test.ts` | Auth, validación, notificabilidad, idempotencia | `integration-test` |
+| `supabase/tests/rls/grants_send_push.sql` | GRANTs de `service_role` sobre `profiles` | `rls-tests` |
 
 ```bash
 npx supabase start
 npx supabase functions serve --env-file supabase/functions/.env.test
-npx jest --testPathPattern="integration/sendPush"
+npx jest --testPathPattern="sendPush"
 ```
+
+El envío real contra `exp.host` no se ejercita en los tests: requiere tokens de
+dispositivos reales y credenciales push del proyecto. Para probarlo de punta a punta en
+local, `EXPO_PUSH_URL` permite apuntar a un doble.

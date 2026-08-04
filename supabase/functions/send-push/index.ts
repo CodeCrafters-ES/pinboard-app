@@ -1,16 +1,24 @@
 // Registros oficiales (jsr / npm) en lugar del CDN esm.sh: el arranque en frío del
 // edge runtime resuelve estos imports mucho más rápido y de forma más fiable en CI.
+import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { z } from 'npm:zod@3.23.8'
 
-// Punto de entrada de los Database Webhooks de Supabase (I-F-N06-02-01).
-// Esta issue cubre el TRANSPORTE: autenticación, validación, idempotencia y una
-// respuesta rápida. La resolución de destinatarios y la llamada a la Expo Push API
-// las implementa I-F-N06-02-02 dentro de los handlers de abajo.
+import { EXPO_PUSH_URL, sendExpoBatch, type SendResult } from './expo.ts'
+import { eventMessage, postMessage } from './messages.ts'
+import { authorUserId, recipientTokens, type PushDb } from './recipients.ts'
+
+// Punto de entrada de los Database Webhooks de Supabase.
+// Transporte (autenticación, validación, idempotencia, respuesta rápida):
+// I-F-N06-02-01. Destinatarios, composición y envío a Expo: I-F-N06-02-02.
+// La purga de tokens inválidos a partir de los tickets es I-F-N06-02-03.
 
 declare const EdgeRuntime: { waitUntil?: (p: Promise<unknown>) => void } | undefined
 
 const WEBHOOK_SECRET = Deno.env.get('PUSH_WEBHOOK_SECRET') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
+// Redirigible para poder ejercitar el envío contra un doble en los tests.
+const EXPO_URL = Deno.env.get('EXPO_PUSH_URL') ?? EXPO_PUSH_URL
 
 // ─── Contrato de entrada ──────────────────────────────────────────────────────
 // Payload de Supabase Database Webhooks. `record` trae la fila completa; aquí solo
@@ -138,23 +146,41 @@ function shouldNotify(payload: Payload): Notify | Skip {
 }
 
 // ─── Handlers por tabla ───────────────────────────────────────────────────────
-// I-F-N06-02-02 implementa aquí la resolución de destinatarios y el envío a Expo;
-// I-F-N06-02-03, la purga de tokens inválidos con los tickets devueltos.
 
 type DispatchResult = { sent_count: number; failed_count: number; pending?: true }
+
+// service_role para saltarse RLS: los tokens son "own" y ningún usuario puede leer
+// los del resto, que es justo lo que hace falta aquí.
+function adminClient(): PushDb {
+  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY) as unknown as PushDb
+}
+
+async function deliver(
+  db: PushDb,
+  excludeUserId: string | null,
+  message: ReturnType<typeof postMessage>,
+): Promise<SendResult> {
+  const tokens = await recipientTokens(db, excludeUserId)
+  return sendExpoBatch({ tokens, message, url: EXPO_URL })
+}
 
 async function handlePostInsert(
   record: z.infer<typeof PostRecord>,
 ): Promise<DispatchResult> {
-  console.log('send-push handler pending', { table: 'posts', record_id: record.id })
-  return { sent_count: 0, failed_count: 0, pending: true }
+  const db = adminClient()
+  // posts.author_id es profiles.id; push_tokens.user_id es auth.uid().
+  const author = await authorUserId(db, record.author_id)
+  const { sent_count, failed_count } = await deliver(db, author, postMessage(record))
+  return { sent_count, failed_count }
 }
 
 async function handleEventInsert(
   record: z.infer<typeof EventRecord>,
 ): Promise<DispatchResult> {
-  console.log('send-push handler pending', { table: 'events', record_id: record.id })
-  return { sent_count: 0, failed_count: 0, pending: true }
+  const db = adminClient()
+  // events.author_id ya es auth.users(id): sin rodeo por profiles.
+  const { sent_count, failed_count } = await deliver(db, record.author_id, eventMessage(record))
+  return { sent_count, failed_count }
 }
 
 // Hito 3 (EPIC-N07 / F-N07-05): el contrato queda cerrado desde ahora para que
