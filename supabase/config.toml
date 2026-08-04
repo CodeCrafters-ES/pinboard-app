@@ -391,6 +391,11 @@ deno_version = 2
 [functions.send-push]
 verify_jwt = false
 
+# La invoca un cron de pg_cron con el mismo secreto compartido (ver
+# supabase/schedules/process_push_receipts.sql), no un usuario con sesión.
+[functions.process-push-receipts]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
