@@ -149,6 +149,12 @@ function shouldNotify(payload: Payload): Notify | Skip {
 // ─── Handlers por tabla ───────────────────────────────────────────────────────
 
 type DispatchResult = {
+  /**
+   * Destinatarios resueltos antes de enviar. Sin este dato, "no había a quién
+   * notificar" y "se intentó y falló todo" se leen igual en los logs: ambos dejan
+   * sent_count y failed_count a cero.
+   */
+  recipients_count: number
   sent_count: number
   failed_count: number
   purged_count?: number
@@ -180,7 +186,7 @@ async function deliver(
     console.log('send-push purge', { purged_count, enqueued_count, reasons })
   }
 
-  return { sent_count, failed_count, purged_count }
+  return { recipients_count: tokens.length, sent_count, failed_count, purged_count }
 }
 
 async function handlePostInsert(
@@ -211,7 +217,7 @@ async function handleMessageInsert(
     chat_id: record.chat_id,
     milestone: 'hito-3',
   })
-  return { sent_count: 0, failed_count: 0, pending: true }
+  return { recipients_count: 0, sent_count: 0, failed_count: 0, pending: true }
 }
 
 async function dispatch(payload: Payload): Promise<DispatchResult> {

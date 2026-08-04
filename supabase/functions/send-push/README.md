@@ -143,9 +143,20 @@ llegara a producir push duplicados en producción, el siguiente paso es una tabl
 JSON estructurado, un evento por request:
 
 ```jsonc
-{ "table": "posts", "type": "INSERT", "record_id": "…", "sent_count": 0, "failed_count": 0, "duration_ms": 4 }
-{ "table": "posts", "type": "INSERT", "record_id": "…", "reason": "post_not_published" }  // send-push ignored
+// send-push
+{ "table": "posts", "type": "INSERT", "record_id": "…",
+  "recipients_count": 12, "sent_count": 11, "failed_count": 1, "purged_count": 1, "duration_ms": 84 }
+
+// send-push ignored
+{ "table": "posts", "type": "INSERT", "record_id": "…", "reason": "post_not_published" }
+
+// send-push purge (solo si hubo algo que purgar o registrar)
+{ "purged_count": 1, "enqueued_count": 11, "reasons": { "purged": 1 } }
 ```
+
+`recipients_count` son los destinatarios resueltos antes de enviar. Es el campo que
+distingue «no había a quién notificar» de «se intentó y falló todo»: sin él, ambos
+casos dejan `sent_count` y `failed_count` a cero y se leen igual.
 
 ## Configuración
 
