@@ -5,11 +5,11 @@ Postgres avisa a esta función cuando se publica un post o se crea un evento, y 
 resuelve destinatarios y llama a la Expo Push API. Implementa el payload de
 [ADR-003](../../../docs/adr/0003-push-deep-linking.md).
 
-**Issues:** I-F-N06-02-01 (#269), I-F-N06-02-02 (#270) · **Feature:** F-N06-02 (#265)
+**Issues:** I-F-N06-02-01 (#269), I-F-N06-02-02 (#270), I-F-N06-02-03 (#271) ·
+**Feature:** F-N06-02 (#265)
 
-> **Estado.** Transporte y envío implementados. Queda I-F-N06-02-03 (#271): purgar de
-> `push_tokens` los tokens cuyos tickets vuelvan con `DeviceNotRegistered`. El handler
-> de `messages` es un stub hasta Hito 3 (F-N07-05).
+> **Estado.** Completa para posts y eventos. El handler de `messages` es un stub hasta
+> Hito 3 (F-N07-05).
 
 ## Módulos
 
@@ -19,11 +19,14 @@ resuelve destinatarios y llama a la Expo Push API. Implementa el payload de
 | `messages.ts` | Copy en ES, fecha en `Europe/Madrid`, truncado a 120 caracteres |
 | `expo.ts` | Llamada a la Expo Push API en lotes de 100 y recolección de tickets |
 | `recipients.ts` | Destinatarios: mapeo del autor y tokens excluyéndolo |
+| `../_shared/push/tickets.ts` | Clasificación de acuses de Expo |
+| `../_shared/push/purge.ts` | Borrado de tokens inválidos y cola de receipts |
 
-`messages.ts`, `expo.ts` y `recipients.ts` no importan nada de Deno —el cliente
-Supabase y `fetch` llegan por parámetro—, así que los tests de Jest los ejercitan
-directamente. De ahí la extensión explícita en los imports relativos: Deno la exige y
-`allowImportingTsExtensions` deja que tsc y Jest la resuelvan igual.
+Ninguno de esos módulos importa nada de Deno —el cliente Supabase y `fetch` llegan por
+parámetro—, así que los tests de Jest los ejercitan directamente. De ahí la extensión
+explícita en los imports relativos: Deno la exige y `allowImportingTsExtensions` deja
+que tsc y Jest la resuelvan igual. Lo que está en `_shared` es lo que comparte con
+[`process-push-receipts`](../process-push-receipts/README.md).
 
 ## Contrato
 
@@ -103,8 +106,14 @@ así que un perfil borrado se lleva sus tokens por delante.
 
 **Envío.** Lotes de 100 (límite de Expo). Un lote que falla no aborta los demás: sus
 tokens cuentan en `failed_count` y el bucle sigue. Sin destinatarios no se llama a
-Expo. Los tickets se devuelven con su token asociado, que es lo que necesitará la
-purga de #271.
+Expo.
+
+**Purga.** Cada ticket vuelve con su `(user_id, token)`. Los que Expo rechaza en el
+acto con `DeviceNotRegistered` o `InvalidCredentials` se borran de `push_tokens` ahí
+mismo; `MessageTooBig` y `MessageRateExceeded` solo se registran, porque el token
+sigue siendo válido; un código desconocido no purga nada. Los aceptados se encolan en
+`push_receipts_pending`, ya que el resultado definitivo llega en el receipt que
+consulta [`process-push-receipts`](../process-push-receipts/README.md) más tarde.
 
 ## Respuestas
 
