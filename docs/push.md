@@ -19,6 +19,8 @@ La resolución de destinatarios y el envío a Expo (I-F-N06-02-02), la purga de 
 | `hooks/useSession.tsx` | Dispara el registro cuando hay sesión y expone `pushStatus` |
 | `lib/auth.ts` | `signOut()` borra el token de este dispositivo antes de invalidar la sesión |
 | `components/PushPermissionNotice.tsx` | Aviso no bloqueante si el usuario ha denegado los permisos |
+| `lib/notifications/pushTarget.ts` | Payload de deep-linking: validación y ruta de destino |
+| `hooks/usePushNavigation.ts` | Navegación al tocar una notificación |
 
 ## Flujo de registro
 
@@ -129,6 +131,42 @@ psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
   -v secret="local-test-webhook-secret" \
   -f supabase/webhooks/send_push_webhooks.sql
 ```
+
+## Deep-linking: del tap a la pantalla
+
+Al tocar una notificación, la app lee `data: { type, id }` (contrato de
+[ADR-003](adr/0003-push-deep-linking.md)) y navega al detalle correspondiente.
+
+| `type` | Ruta | Estado |
+|---|---|---|
+| `post` | `/(app)/(tabs)/tablon/[id]` | Activo |
+| `event` | `/(app)/(tabs)/calendario/[id]` | Activo |
+| `chat` | `/(app)/(tabs)/chat/[id]` | Hito 3 (F-N07-05): la pantalla aún no existe, el payload se ignora |
+
+| Pieza | Rol |
+|---|---|
+| `lib/notifications/pushTarget.ts` | Valida el payload y resuelve la ruta |
+| `hooks/usePushNavigation.ts` | Escucha los taps y navega cuando se puede |
+| `app/_layout.tsx` | Monta el hook dentro del `SessionProvider` |
+
+**Captura y entrega van separadas** porque casi nunca coinciden en el tiempo:
+
+- **App abierta o en segundo plano**: `addNotificationResponseReceivedListener` recibe el tap.
+- **App cerrada (cold start)**: ese listener ya no dispara; el destino se recupera con
+  `getLastNotificationResponseAsync`. Como el tap que arranca la app puede llegar por ambas vías, se
+  descarta el duplicado por el identificador de la notificación.
+
+El destino se guarda y solo se navega cuando el árbol de navegación está montado (`useRootNavigationState`)
+**y** hay sesión: navegar antes se perdería en silencio, y sin sesión el guard de `(app)` redirigiría al
+login llevándose el destino por delante. Al iniciar sesión, el efecto reacciona y completa la navegación.
+
+Un payload que no cumpla el contrato se descarta con un aviso en dev: viene de fuera y un tap nunca debe
+tirar la app.
+
+> **Nota sobre el scheme.** El deep-linking de push **no** usa el scheme de la app: el destino viaja en
+> `data`, no en una URL. El scheme (`nun-ibiza`, en `app.config.js`) lo usan los correos de invitación y
+> recuperación de contraseña (`nun-ibiza://set-password`, `nun-ibiza://reset-password`), así que cambiarlo
+> rompería esos enlaces.
 
 ## Purga de tokens inválidos
 
