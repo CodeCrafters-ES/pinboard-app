@@ -22,8 +22,9 @@ export default function ChatThreadScreen() {
   }>();
   const { session } = useSession();
   const userId = session?.userId ?? null;
+  const isAdmin = session?.role === 'admin';
 
-  const { messages, loading, loadingMore, hasMore, error, loadMore, sendMessage, retry } =
+  const { messages, loading, loadingMore, hasMore, error, loadMore, sendMessage, retry, softDelete } =
     useChat(chatId);
   const { onlineUserIds } = usePresence(chatId);
   const { typingUserIds, setTyping } = useTyping(chatId);
@@ -56,9 +57,15 @@ export default function ChatThreadScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: ChatMessage }) => (
-      <MessageBubble message={item} isOwn={item.sender_id === userId} onRetry={retry} />
+      <MessageBubble
+        message={item}
+        isOwn={item.sender_id === userId}
+        isAdmin={isAdmin}
+        onRetry={retry}
+        onDelete={(m) => softDelete(m.id)}
+      />
     ),
-    [userId, retry],
+    [userId, isAdmin, retry, softDelete],
   );
 
   return (

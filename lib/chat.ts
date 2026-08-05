@@ -34,14 +34,31 @@ export const MAX_MESSAGE_LENGTH = 4000;
 // Tope de mensajes en memoria; al superarlo se descartan los más antiguos.
 export const MAX_MESSAGES_IN_MEMORY = 500;
 
-// Columnas explícitas: el content de mensajes borrados llega igual (se enmascara en
-// cliente), la paginación no filtra por deleted_at (ver docs/chat.md).
+// Columnas explícitas. La lectura va por la vista messages_public_v, que enmascara el
+// content de los borrados (deleted_at not null → null); la paginación no filtra por
+// deleted_at (los borrados se muestran como "Mensaje eliminado"). Ver docs/chat.md.
 const MESSAGE_COLUMNS = 'id, chat_id, sender_id, content, created_at, edited_at, deleted_at';
+
+// Fila de la vista messages_public_v: todas las columnas son nullable en el tipo. La
+// normalizamos a Message; el content null (borrado) se pinta vía displayContent, que
+// mira deleted_at primero, así que un '' aquí es inocuo.
+function toMessage(r: Database['public']['Views']['messages_public_v']['Row']): Message {
+  return {
+    id: r.id ?? '',
+    chat_id: r.chat_id ?? '',
+    sender_id: r.sender_id ?? '',
+    content: r.content ?? '',
+    created_at: r.created_at ?? '',
+    edited_at: r.edited_at,
+    deleted_at: r.deleted_at,
+  };
+}
 
 /**
  * Página de mensajes de un chat, orden `created_at desc, id desc` (más nuevo
  * primero). Con `cursor` trae los anteriores a esa tupla (comparación de tupla vía
- * `.or`), sin duplicados ni gaps aunque coincida `created_at`.
+ * `.or`), sin duplicados ni gaps aunque coincida `created_at`. Lee de
+ * `messages_public_v` para que el content de los borrados no viaje al cliente.
  */
 export async function listMessages({
   chatId,
@@ -55,7 +72,7 @@ export async function listMessages({
   client?: SupabaseClient<Database>;
 }): Promise<{ rows: Message[]; nextCursor: MessageCursor | null }> {
   let query = client
-    .from('messages')
+    .from('messages_public_v')
     .select(MESSAGE_COLUMNS)
     .eq('chat_id', chatId)
     .order('created_at', { ascending: false })
@@ -71,7 +88,7 @@ export async function listMessages({
   const { data, error } = await query;
   if (error) throw error;
 
-  const rows = data ?? [];
+  const rows = (data ?? []).map(toMessage);
   const lastRow = rows[rows.length - 1];
   const nextCursor =
     rows.length === pageSize && lastRow
@@ -187,6 +204,27 @@ export async function createOrGetDirectChat({
   if (error) throw error;
   if (!data) throw new Error('No se pudo abrir el chat');
   return data;
+}
+
+/**
+ * Soft delete de un mensaje: marca `deleted_at`. No borra físicamente. La RLS
+ * (messages_update_own) solo deja borrar el propio mensaje o, si es admin, cualquiera
+ * (moderación); un no autorizado no afecta filas. El content deja de exponerse a través
+ * de messages_public_v en cuanto deleted_at queda seteado.
+ */
+export async function softDeleteMessage({
+  messageId,
+  client = supabase,
+}: {
+  messageId: string;
+  client?: SupabaseClient<Database>;
+}): Promise<void> {
+  const { error } = await client
+    .from('messages')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', messageId);
+
+  if (error) throw error;
 }
 
 // Texto a mostrar de un mensaje: los borrados (soft delete) nunca enseñan su content.

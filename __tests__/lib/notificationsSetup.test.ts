@@ -1,7 +1,11 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
-import { configureNotificationHandler, startPushTokenSync } from '@/lib/notifications/setup';
+import {
+  configureNotificationHandler,
+  configureNotifications,
+  startPushTokenSync,
+} from '@/lib/notifications/setup';
 import { refreshPushToken, retryPendingRegistration } from '@/lib/notifications/pushToken';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
@@ -18,6 +22,12 @@ jest.mock('expo-notifications', () => ({
 jest.mock('@/lib/notifications/pushToken', () => ({
   refreshPushToken: jest.fn().mockResolvedValue({ status: 'registered', token: 'tok' }),
   retryPendingRegistration: jest.fn().mockResolvedValue(null),
+}));
+
+const mockSetupAndroidChannels = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('@/lib/notifications/setupChannels', () => ({
+  setupAndroidChannels: (...args: unknown[]) => mockSetupAndroidChannels(...args),
 }));
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -63,6 +73,17 @@ describe('configureNotificationHandler', () => {
       shouldPlaySound: true,
       shouldSetBadge: false,
     });
+  });
+});
+
+describe('configureNotifications', () => {
+  // Punto único de arranque: si deja de crear los canales, en Android todo cae en el
+  // canal del sistema y el usuario no puede silenciar chat sin silenciar el tablón.
+  it('instala el handler y crea los canales de Android', () => {
+    configureNotifications();
+
+    expect(mockSetNotificationHandler).toHaveBeenCalledTimes(1);
+    expect(mockSetupAndroidChannels).toHaveBeenCalledTimes(1);
   });
 });
 

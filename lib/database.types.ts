@@ -642,6 +642,18 @@ export type Database = {
       }
     }
     Views: {
+      messages_public_v: {
+        Row: {
+          chat_id: string | null
+          content: string | null
+          created_at: string | null
+          deleted_at: string | null
+          edited_at: string | null
+          id: string | null
+          sender_id: string | null
+        }
+        Relationships: []
+      }
       my_chats_v: {
         Row: {
           chat_id: string | null

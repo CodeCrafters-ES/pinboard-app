@@ -2,7 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   createOrGetDirectChat,
+  listMessages,
   listMyChats,
+  softDeleteMessage,
   displayContent,
   type Message,
 } from '@/lib/chat';
@@ -84,6 +86,76 @@ describe('lib/chat', () => {
         last_message_sender_id: null,
         last_message_content: null,
       });
+    });
+  });
+
+  describe('listMessages', () => {
+    it('lee de messages_public_v y normaliza el content enmascarado de los borrados', async () => {
+      const result = {
+        data: [
+          {
+            id: 'm1',
+            chat_id: 'c1',
+            sender_id: 'u1',
+            content: 'hola',
+            created_at: '2026-08-06T10:00:00Z',
+            edited_at: null,
+            deleted_at: null,
+          },
+          {
+            id: 'm2',
+            chat_id: 'c1',
+            sender_id: 'u1',
+            content: null, // la vista enmascara el content de los borrados
+            created_at: '2026-08-06T09:00:00Z',
+            edited_at: null,
+            deleted_at: '2026-08-06T09:30:00Z',
+          },
+        ],
+        error: null,
+      };
+      const builder: Record<string, unknown> = {};
+      builder.select = jest.fn(() => builder);
+      builder.eq = jest.fn(() => builder);
+      builder.order = jest.fn(() => builder);
+      builder.limit = jest.fn(() => Promise.resolve(result));
+      const from = jest.fn(() => builder);
+
+      const { rows, nextCursor } = await listMessages({
+        chatId: 'c1',
+        client: { from } as unknown as FakeClient,
+      });
+
+      expect(from).toHaveBeenCalledWith('messages_public_v');
+      expect(rows[0]).toMatchObject({ id: 'm1', content: 'hola', deleted_at: null });
+      // content null (borrado) → '' pero conservando deleted_at.
+      expect(rows[1]).toMatchObject({ id: 'm2', content: '', deleted_at: '2026-08-06T09:30:00Z' });
+      // Menos filas que el pageSize → no hay más páginas.
+      expect(nextCursor).toBeNull();
+    });
+  });
+
+  describe('softDeleteMessage', () => {
+    it('marca deleted_at del mensaje por id', async () => {
+      const eq = jest.fn().mockResolvedValue({ error: null });
+      const update = jest.fn(() => ({ eq }));
+      const from = jest.fn(() => ({ update }));
+
+      await softDeleteMessage({ messageId: 'm1', client: { from } as unknown as FakeClient });
+
+      expect(from).toHaveBeenCalledWith('messages');
+      expect(update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
+      expect(eq).toHaveBeenCalledWith('id', 'm1');
+    });
+
+    it('propaga el error de la BD', async () => {
+      const eq = jest.fn().mockResolvedValue({ error: { message: 'denied' } });
+      const update = jest.fn(() => ({ eq }));
+      const from = jest.fn(() => ({ update }));
+
+      await expect(
+        softDeleteMessage({ messageId: 'm1', client: { from } as unknown as FakeClient }),
+      ).rejects.toEqual({ message: 'denied' });
     });
   });
 

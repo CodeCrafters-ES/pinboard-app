@@ -21,6 +21,7 @@ La resolución de destinatarios y el envío a Expo (I-F-N06-02-02), la purga de 
 | `components/PushPermissionNotice.tsx` | Aviso no bloqueante si el usuario ha denegado los permisos |
 | `lib/notifications/pushTarget.ts` | Payload de deep-linking: validación y ruta de destino |
 | `hooks/usePushNavigation.ts` | Navegación al tocar una notificación |
+| `lib/notifications/setupChannels.ts` | Canales de Android `general` y `chat` |
 
 ## Flujo de registro
 
@@ -69,9 +70,34 @@ La resolución de destinatarios y el envío a Expo (I-F-N06-02-02), la purga de 
 
 ## Foreground y canales Android
 
-`configureNotifications()` se ejecuta al cargar el layout raíz e instala el handler que muestra las
-notificaciones con la app en primer plano (`shouldShowAlert`, `shouldPlaySound`; sin badge en el MVP).
-Es el punto donde I-F-N06-03-02 enganchará `ensureAndroidChannels()` con los canales `general` y `chat`.
+`configureNotifications()` se ejecuta al cargar el layout raíz y hace dos cosas: instala el handler que
+muestra las notificaciones con la app en primer plano (`shouldShowAlert`, `shouldPlaySound`; sin badge en el
+MVP) y crea los canales de Android. Los canales se lanzan sin esperar: son una llamada nativa que no debe
+retrasar el primer render, y el push más temprano posible llega mucho después.
+
+Android 8+ exige que cada notificación pertenezca a un canal. Sin declararlos, el sistema las agrupa en uno
+por defecto y el usuario no podría silenciar el chat sin silenciar también el tablón.
+
+| Tipo | `channelId` | Importancia | Vibración | Extras |
+|---|---|---|---|---|
+| `post` | `general` | `DEFAULT` — informativo, no interrumpe | `[0, 250, 250, 250]` | sonido por defecto |
+| `event` | `general` | `DEFAULT` | `[0, 250, 250, 250]` | sonido por defecto |
+| `chat` (Hito 3) | `chat` | `HIGH` — suena y sale en la pantalla bloqueada | `[0, 100, 100, 100]` | luz `#5B97B4` (nun-sea) |
+
+Los identificadores son el contrato con `send-push`, que los envía en `channelId` con cada mensaje.
+
+`setNotificationChannelAsync` es idempotente —sobre un canal existente lo actualiza— y tras reinstalar la app
+los canales se recrean en el arranque. Una vez creado el canal, si el usuario cambia importancia o sonido
+desde Ajustes, el sistema ignora lo que declare la app: estos valores son solo el estado inicial.
+
+En **iOS** no hay canales y `setupAndroidChannels()` no hace nada. El equivalente es el `interruptionLevel`
+de APNs, que por defecto es `active`: la notificación suena y se muestra, sin atravesar el modo «No
+molestar». Es el comportamiento que se quiere para posts y eventos, así que no se envía explícitamente. Si
+en Hito 3 se decide que el chat sí lo atraviese, habría que añadir `interruptionLevel: 'timeSensitive'` al
+mensaje de Expo y solicitar el entitlement correspondiente.
+
+Los valores canónicos viven en [ADR-003](adr/0003-push-deep-linking.md), revisado el 2026-08-04 para
+recoger lo implementado aquí.
 
 ## Database Webhooks
 
