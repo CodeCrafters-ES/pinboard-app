@@ -13,8 +13,9 @@ base (tablas, triggers, unicidad del par 1:1) vive en la migración `20260731000
 | `public.messages` | `id`, `chat_id`, `sender_id`, `content`, `created_at`, `edited_at`, `deleted_at` |
 
 Los mensajes **no se borran físicamente**: el soft delete pone `deleted_at` y el cliente los muestra como
-_"Mensaje eliminado"_. Por tanto la paginación **trae también** las filas con `deleted_at not null` (solo se
-enmascara `content` en cliente); no se filtra por `deleted_at is null`.
+_"Mensaje eliminado"_. Por tanto la paginación **trae también** las filas con `deleted_at not null`; no se
+filtra por `deleted_at is null`. El `content` de los borrados se oculta en la vista `messages_public_v`
+(F-N07-04, ver §Soft delete), que es de donde lee el cliente.
 
 ## Índices (`20260731100000_chat_indexes.sql`)
 
@@ -43,6 +44,8 @@ sin tocar `messages_chat_paging_idx`.
 ### Paginación del hilo (cursor-based, hacia atrás en el tiempo)
 
 Orden fijo `created_at desc, id desc`; página de **30**. Consumida por el hook `useChat` (I-F-N07-03-01).
+El cliente lee estas columnas por la vista **`messages_public_v`** (no la tabla) para no recibir el `content`
+de los borrados; la forma de la query y el índice usado son idénticos (la vista es un `select` directo).
 
 ```sql
 -- Primera página:
@@ -198,6 +201,34 @@ del 1:1 y un preview del último mensaje: `partner_user_id`, `partner_name`, `pa
 
 Componentes en `components/chat/`: `MessageBubble`, `ChatComposer`, `ChatListRow`, `TypingIndicator`,
 `ChatAvatar`. Los mensajes borrados se muestran como _"Mensaje eliminado"_ vía `displayContent`.
+
+## Soft delete (F-N07-04, `20260807000000_messages_public_v.sql`)
+
+Borrar un mensaje es un **soft delete**: `messages.deleted_at = now()` (nunca `DELETE` físico salvo admin).
+La autorización la impone la RLS `messages_update_own` (`sender_id = auth.uid() or is_admin()`): el autor borra
+el suyo y un admin modera cualquiera.
+
+**No exponer el `content` tras el borrado (Opción B).** El cliente lee los mensajes por la vista
+`messages_public_v` (`security_invoker = true`), que enmascara el content:
+
+```sql
+case when deleted_at is null then content else null end as content
+```
+
+Como es `security_invoker`, la vista **hereda la RLS** de `messages` (solo participantes / admin): no amplía
+visibilidad, solo oculta la columna. Así el content original no es recuperable desde el cliente.
+
+**Flujo:**
+- `softDeleteMessage(messageId)` (`lib/chat.ts`) → `update({ deleted_at }).eq('id', …)`.
+- `useChat().softDelete(id)`: optimista (marca `deleted_at` + vacía `content` en local; revierte si falla).
+- `MessageBubble`: **long-press** en un mensaje propio (o cualquiera si eres admin) → confirmación
+  (`Alert`) → borra. Muestra "Borrar" o "Borrar (moderación)".
+- El `UPDATE` se propaga al otro participante vía Realtime (`useChat` reconcilia con `upsertReal`).
+
+**Límite conocido (Realtime):** el stream `postgres_changes` va sobre la **tabla** `messages`, así que el
+payload del `UPDATE` de un borrado trae el `content` original. `useChat` lo **enmascara en cliente**
+(`maskDeleted`) para que no entre al estado; una garantía a nivel websocket (p. ej. filtrado de columnas o
+un canal privado) queda fuera del MVP.
 
 ## Benchmark (validación de umbrales)
 
