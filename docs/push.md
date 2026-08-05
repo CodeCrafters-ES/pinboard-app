@@ -167,7 +167,11 @@ Al tocar una notificación, la app lee `data: { type, id }` (contrato de
 |---|---|---|
 | `post` | `/(app)/(tabs)/tablon/[id]` | Activo |
 | `event` | `/(app)/(tabs)/calendario/[id]` | Activo |
-| `chat` | `/(app)/(tabs)/chat/[id]` | Hito 3 (F-N07-05): la pantalla aún no existe, el payload se ignora |
+| `chat` | `/(app)/(tabs)/chat/[chatId]` | Activo. El envío de push de chat llega con F-N07-05 |
+
+El hilo de chat recibe solo el `chatId`, que es lo único que trae el payload. La pantalla acepta además
+`name` y `partnerId` de forma opcional, así que al abrirse desde una notificación arranca sin el nombre en
+la cabecera ni el estado de presencia del interlocutor hasta que se resuelven.
 
 | Pieza | Rol |
 |---|---|

@@ -106,15 +106,14 @@ describe('usePushNavigation', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  // El push de chat llega en Hito 3; navegar hoy daría "Unmatched Route".
-  it('ignora el tipo chat mientras no exista la pantalla', async () => {
+  // El envío de push de chat llega con F-N07-05, pero el destino ya existe.
+  it('navega al hilo del chat', async () => {
     const listener = captureListener();
     renderHook(() => usePushNavigation());
 
     listener()(response({ type: 'chat', id: ID }));
 
-    await waitFor(() => expect(mockAddListener).toHaveBeenCalled());
-    expect(mockPush).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/(app)/(tabs)/chat/${ID}`));
   });
 
   it('espera a que el router esté montado', async () => {
