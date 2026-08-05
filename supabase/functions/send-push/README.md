@@ -165,7 +165,7 @@ casos dejan `sent_count` y `failed_count` a cero y se leen igual.
 | `PUSH_WEBHOOK_SECRET` | Secreto compartido con el trigger. `supabase secrets set PUSH_WEBHOOK_SECRET=…` |
 | `SUPABASE_SERVICE_ROLE_KEY` | La inyecta la plataforma; alternativa aceptada como Bearer y necesaria para leer `profiles` y `push_tokens`. |
 | `SUPABASE_URL` | La inyecta la plataforma. |
-| `EXPO_PUSH_URL` | Opcional. Redirige el envío a un doble; por defecto, la Expo Push API. |
+| `EXPO_PUSH_URL` | Opcional. Redirige el envío; por defecto, la Expo Push API. En local y CI apunta a un puerto cerrado (ver abajo). |
 
 Los pasos para crear los webhooks en un entorno nuevo están en
 [`docs/push.md`](../../../docs/push.md#database-webhooks); el script reproducible es
@@ -188,5 +188,11 @@ npx jest --testPathPattern="sendPush"
 ```
 
 El envío real contra `exp.host` no se ejercita en los tests: requiere tokens de
-dispositivos reales y credenciales push del proyecto. Para probarlo de punta a punta en
-local, `EXPO_PUSH_URL` permite apuntar a un doble.
+dispositivos reales y credenciales push del proyecto.
+
+**En local y en CI, `EXPO_PUSH_URL` apunta a un puerto cerrado a propósito**
+(`supabase/functions/.env.test`). No es solo por no depender de la red: Expo responde
+`DeviceNotRegistered` a los tokens de prueba y la purga los borraría de la base,
+llevándose por delante las filas de las suites que corren en paralelo. Con el destino
+inalcanzable, el envío cuenta fallos y no clasifica ningún ticket, así que no purga ni
+encola nada. Las suites que sí ejercitan el envío inyectan su propio doble de `fetch`.

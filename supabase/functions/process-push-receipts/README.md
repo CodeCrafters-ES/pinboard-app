@@ -49,7 +49,7 @@ Si la petición a Expo falla, el lote se queda en la cola para la siguiente pasa
 | `PUSH_WEBHOOK_SECRET` | Secreto compartido con el cron |
 | `SUPABASE_SERVICE_ROLE_KEY` | La inyecta la plataforma; necesaria para leer la cola y borrar tokens |
 | `SUPABASE_URL` | La inyecta la plataforma |
-| `EXPO_RECEIPTS_URL` | Opcional. Redirige la consulta a un doble; por defecto, `getReceipts` |
+| `EXPO_RECEIPTS_URL` | Opcional. Redirige la consulta; por defecto, `getReceipts`. En local y CI apunta a un puerto cerrado, para que los tests no salgan a `exp.host` (ver `supabase/functions/.env.test`) |
 
 El cron se programa con
 [`supabase/schedules/process_push_receipts.sql`](../../schedules/process_push_receipts.sql);

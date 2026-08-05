@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { refreshPushToken, retryPendingRegistration } from './pushToken';
+import { setupAndroidChannels } from './setupChannels';
 
 /**
  * Sin handler, una notificación que llega con la app en primer plano no se ve:
@@ -19,14 +20,15 @@ export function configureNotificationHandler(): void {
 }
 
 /**
- * Configuración global de notificaciones, independiente de la sesión.
+ * Configuración global de notificaciones, independiente de la sesión: se ejecuta al
+ * cargar el layout raíz, antes de que haya token registrado o llegue nada.
  *
- * I-F-N06-03-02 añadirá `lib/notifications/setupChannels.ts` con los canales
- * Android `general` y `chat`; su `ensureAndroidChannels()` se invoca desde aquí,
- * antes de cualquier registro de token.
+ * Los canales se crean sin esperar (`void`): son una llamada nativa a Android que no
+ * debe retrasar el primer render, y el push más temprano posible llega mucho después.
  */
 export function configureNotifications(): void {
   configureNotificationHandler();
+  void setupAndroidChannels();
 }
 
 /**

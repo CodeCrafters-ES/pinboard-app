@@ -140,6 +140,19 @@ jobs:
             echo "warming edge function... ($body)"; sleep 2
           done
 
+          # Cada función paga su propio arranque en frío (resolver los imports jsr: y
+          # npm:), y ese coste no puede caer dentro del timeout de un test: las de push
+          # se calientan aquí igual que track-engagement. Sin Authorization responden
+          # 401, y ese 401 ya prueba que el módulo está cargado y sirviendo.
+          for fn in send-push process-push-receipts; do
+            for i in $(seq 1 30); do
+              body=$(curl -s -m 30 -X POST "http://127.0.0.1:54321/functions/v1/$fn" \
+                -H "Content-Type: application/json" -d '{}' || true)
+              if [ -n "$body" ]; then echo "edge function warm: $fn ($body)"; break; fi
+              echo "warming $fn... ($i)"; sleep 2
+            done
+          done
+
           pnpm test -- --ci --testPathPattern="__tests__/integration/"
       - if: always()
         run: cat /tmp/functions.log || true
