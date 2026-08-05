@@ -1,7 +1,7 @@
 # ADR-007 — Gamificación: puntos por engagement y ranking
 
-**Estado:** Propuesto — la arquitectura técnica está decidida; los **valores numéricos de puntos** quedan pendientes de validación del cliente (Nun Ibiza).
-**Fecha:** 2026-07-30
+**Estado:** Aceptado — arquitectura y valores numéricos aprobados (spec «Reglas de gamificación», 2026-07-30). Implementado en F-N08-01.
+**Fecha:** 2026-07-30 · **Actualizado:** 2026-08-05 (implementación I-F-N08-01-01 / I-F-N08-01-02)
 **Autores:** Alex Zapata
 **Issues:** EPIC-N08 · F-N08-01 · F-N08-02 · I-F-N08-01-01/02 · I-F-N08-02-01/02
 
@@ -29,7 +29,7 @@ Restricción transversal: en el proyecto `profiles.id` **≠** `auth.uid()` (la 
 | Reacción (like/dislike/love) | 2 | `post_reactions` |
 | Vista de la card (`viewed`) | 1 | `engagement_sessions` |
 
-> ⚠️ Los valores son una propuesta técnica y **requieren aprobación del cliente** antes de implementar.
+Valores aprobados por el cliente el 2026-07-30. Cambiarlos exige una migración nueva: los puntos ya adjudicados **no** se recalculan (`user_points` es un histórico, no una proyección).
 
 ### Idempotencia y anti-farming
 
@@ -72,11 +72,28 @@ Función RPC `leaderboard(period_start, period_end, limit_n)` `SECURITY DEFINER`
 
 ---
 
+## Implementación (F-N08-01)
+
+| Migración | Contenido | Issue |
+|---|---|---|
+| `20260807000000_create_user_points_n08_01_02.sql` | Enum `points_source`, tabla `user_points`, índice único `(user_id, source_type, source_id)`, índices de lectura por usuario y por fecha, RLS `user_points_select_own` | I-F-N08-01-02 |
+| `20260807000001_user_points_rules_n08_01_01.sql` | Helper `award_points()` + 4 trigger functions `award_points_*` con sus triggers | I-F-N08-01-01 |
+
+Detalles que fija la implementación:
+
+- **Grants.** `auto_expose_new_tables` está desactivado, así que la tabla nace sin privilegios: se concede solo `select` a `authenticated` (para «mis puntos») y se revoca `insert/update/delete` de forma explícita. Las funciones `award_points*` tienen `EXECUTE` revocado a `public`, `anon` y `authenticated`: solo las invocan los triggers, y Postgres no comprueba `EXECUTE` al dispararlos.
+- **Trigger de engagement.** `after insert or update of status, link_clicked`: la RPC `apply_engagement_events` fija siempre esas dos columnas, mientras que acumular `focused_seconds` / `max_scroll_pct` (ADR-006) no debe repuntuar.
+- **`source_id` sin FK a `posts`.** Los puntos ganados sobreviven al borrado del post, para no falsear el histórico del ranking.
+- **Comentarios: sin `deleted_at`.** El diseño original preveía puntuar solo comentarios no borrados, pero `post_comments` usa borrado duro (`post_comments_delete_self_or_admin`) y no tiene columna `deleted_at`. El trigger puntúa al insertar y borrar el comentario **no** retira los 5 puntos — coherente con la regla general de que deshacer una acción no altera los puntos ya otorgados (ídem reacción borrada). Si N03 añadiera soft delete, hay que revisar `award_points_comment()` y este apartado.
+- **Tests pgTAP.** `supabase/tests/rls/rls_user_points.sql` (RLS + índice único) y `supabase/tests/rls/trigger_award_points.sql` (las 5 acciones, idempotencia por acción, máximo 21 pts/post/usuario, aislamiento entre usuarios).
+
+---
+
 ## Consecuencias
 
 **Positivas:** puntos deterministas, idempotentes y auditables; leaderboard barato vía RPC sin exponer datos personales; claves de usuario homogéneas (`auth.uid()`), sin el desajuste `profiles.id`.
 
-**Negativas / limitaciones:** triggers en cuatro tablas fuente; los valores numéricos dependen de validación del cliente; sin decaimiento temporal de puntos ni streaks en el MVP.
+**Negativas / limitaciones:** triggers en cuatro tablas fuente (cualquier cambio de esquema en ellas obliga a revisarlos); retirar puntos exige lógica extra que el MVP no tiene; sin decaimiento temporal de puntos ni streaks.
 
 ---
 
