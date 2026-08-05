@@ -599,7 +599,12 @@ export type Database = {
           chat_id: string | null
           is_group: boolean | null
           last_message_at: string | null
+          last_message_content: string | null
+          last_message_sender_id: string | null
           last_read_at: string | null
+          partner_avatar_url: string | null
+          partner_name: string | null
+          partner_user_id: string | null
           unread_count: number | null
         }
         Relationships: []
@@ -685,6 +690,10 @@ export type Database = {
       auth_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      create_or_get_direct_chat: {
+        Args: { other_user: string }
+        Returns: string
       }
       is_admin: { Args: never; Returns: boolean }
       is_chat_participant: { Args: { p_chat_id: string }; Returns: boolean }

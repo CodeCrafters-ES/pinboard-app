@@ -53,6 +53,11 @@ function chat(chatId: string, unread: number): MyChat {
     last_message_at: '2026-08-04T10:00:00Z',
     last_read_at: '2026-08-04T09:00:00Z',
     unread_count: unread,
+    partner_user_id: 'partner',
+    partner_name: 'Partner',
+    partner_avatar_url: null,
+    last_message_sender_id: 'partner',
+    last_message_content: 'hola',
   };
 }
 

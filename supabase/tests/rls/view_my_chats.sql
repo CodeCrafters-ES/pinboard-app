@@ -6,6 +6,8 @@
 --   - por-espectador: manager y admin ven contadores distintos del mismo chat.
 --   - self-sent no infla mi unread; mensaje borrado no cuenta; chat sin mensajes → 0.
 --   - un no participante no ve el chat (la vista lo acota a auth.uid()).
+--   - enriquecido: partner_user_id del 1:1 y preview del último mensaje (enmascarado
+--     si el más reciente está borrado).
 --
 -- Seed UUIDs (supabase/seed.sql) — ids de auth.users:
 --   admin:   aaaaaaaa-0000-0000-0000-000000000001
@@ -13,7 +15,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(7);
+select plan(8);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -96,6 +98,18 @@ select is(
   (select count(*)::int from public.my_chats_v),
   2,
   'manager ve exactamente sus 2 chats'
+);
+
+-- Enriquecido: el interlocutor es admin y el preview del último mensaje (el borrado de
+-- las 13:00) llega enmascarado (content null) pero conservando el sender.
+select results_eq(
+  $$ select partner_user_id, last_message_sender_id, last_message_content
+     from public.my_chats_v
+     where chat_id = 'ccccaaaa-0000-0000-0000-000000000001'::uuid $$,
+  $$ values ('aaaaaaaa-0000-0000-0000-000000000001'::uuid,
+             'aaaaaaaa-0000-0000-0000-000000000001'::uuid,
+             null::text) $$,
+  'manager: partner=admin y preview enmascarado (último mensaje borrado)'
 );
 
 -- ── admin: mismo chat A, distinto contador (self por-espectador) ──────────────
