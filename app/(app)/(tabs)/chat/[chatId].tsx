@@ -49,6 +49,11 @@ export default function ChatThreadScreen() {
     if (newestId) markRead();
   }, [newestId, markRead]);
 
+  // Al salir del hilo, dejar de "escribiendo…": si no, quien queda con texto en el input
+  // sin enviar dejaría el indicador colgado en el otro lado (useTyping no emite false en
+  // su cleanup). Corre antes que el cleanup de useTyping, con el canal aún vivo.
+  useEffect(() => () => setTyping(false), [setTyping]);
+
   const renderItem = useCallback(
     ({ item }: { item: ChatMessage }) => (
       <MessageBubble message={item} isOwn={item.sender_id === userId} onRetry={retry} />
