@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import {
   listMessages,
   sendMessage as sendMessageToDb,
+  softDeleteMessage,
   MAX_MESSAGE_LENGTH,
   MESSAGES_PAGE_SIZE,
   MAX_MESSAGES_IN_MEMORY,
@@ -47,10 +48,18 @@ function sortCap(list: ChatMessage[]): ChatMessage[] {
     : sorted;
 }
 
+// El stream postgres_changes va sobre la tabla messages, así que el content de un
+// borrado llega en claro; lo enmascaramos aquí para que no entre al estado (espeja la
+// vista messages_public_v). Ver docs/chat.md.
+function maskDeleted(row: Message): Message {
+  return row.deleted_at ? { ...row, content: '' } : row;
+}
+
 // Inserta o reemplaza una fila persistida (de Realtime o del INSERT propio).
 // Reconcilia el optimista pendiente que coincida en sender+content para que el
 // envío optimista no deje duplicado ni parpadeo cuando llega el evento Realtime.
-function upsertReal(list: ChatMessage[], row: Message): ChatMessage[] {
+function upsertReal(list: ChatMessage[], incoming: Message): ChatMessage[] {
+  const row = maskDeleted(incoming);
   const byId = list.findIndex((m) => m.id === row.id);
   if (byId >= 0) {
     const next = [...list];
@@ -224,6 +233,31 @@ export function useChat(chatId: string) {
     [deliver],
   );
 
+  // Soft delete optimista: marca deleted_at + enmascara el content localmente y llama a
+  // la BD; el UPDATE de Realtime reconcilia. Si falla, restaura la fila original.
+  const softDelete = useCallback(async (messageId: string) => {
+    const snapshot = messagesRef.current.find((m) => m.id === messageId);
+    if (!snapshot || snapshot.deleted_at) return;
+
+    const deletedAt = new Date().toISOString();
+    setState((s) => ({
+      ...s,
+      messages: s.messages.map((m) =>
+        m.id === messageId ? { ...m, deleted_at: deletedAt, content: '' } : m,
+      ),
+    }));
+
+    try {
+      await softDeleteMessage({ messageId });
+    } catch {
+      setState((s) => ({
+        ...s,
+        messages: s.messages.map((m) => (m.id === messageId ? snapshot : m)),
+      }));
+      Alert.alert('Error', 'No se pudo borrar el mensaje.');
+    }
+  }, []);
+
   return {
     messages: state.messages,
     loading: state.loading,
@@ -233,5 +267,6 @@ export function useChat(chatId: string) {
     loadMore,
     sendMessage,
     retry,
+    softDelete,
   };
 }

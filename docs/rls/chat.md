@@ -15,6 +15,9 @@ ocultar un botón por UX, pero si la policy no permite la operación, la query f
   (`deleted_at`); el **admin** puede intervenir (moderación) sobre cualquier mensaje. **No** hay `DELETE`
   físico para `authenticated` salvo admin. La ventana de edición de 15 min es **UX en cliente**, no RLS
   (ADR-0004).
+- **Content de borrados no recuperable (F-N07-04):** el cliente lee por la vista `messages_public_v`
+  (`security_invoker`), que enmascara `content` a `null` cuando `deleted_at is not null`. Hereda la RLS de
+  `messages`, así que solo oculta la columna, no amplía visibilidad. Ver §Soft delete en `docs/chat.md`.
 - **`last_read_at`:** cada participante actualiza el suyo (no el de otros) — base del contador de no leídos
   (F-N07-03).
 
