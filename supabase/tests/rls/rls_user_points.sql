@@ -2,7 +2,7 @@
 -- Policies: user_points_select_own (propia fila o admin).
 -- Escritura: sin grants para authenticated/anon — es exclusiva de los triggers
 -- SECURITY DEFINER award_points_* (I-F-N08-01-01), cubiertos en trigger_award_points.sql.
--- refs: docs/adr/0007-gamification.md, migración 20260807000000_create_user_points_n08_01_02.sql
+-- refs: docs/adr/0007-gamification.md, migración 20260808000000_create_user_points_n08_01_02.sql
 --
 -- Seed UUIDs (supabase/seed.sql):
 --   admin:   aaaaaaaa-0000-0000-0000-000000000001

@@ -2,7 +2,7 @@
 -- Epic N08 (#291) / Feature F-N08-01 (#292) / Issue I-F-N08-01-02 (#295).
 -- refs: docs/adr/0007-gamification.md (Opción A: tabla + triggers, elegida)
 --       docs/adr/0002-rbac.md (helper is_admin(), convención RLS)
--- Precondition for 20260807000001_user_points_rules_n08_01_01.sql (helper + triggers).
+-- Precondition for 20260808000001_user_points_rules_n08_01_01.sql (helper + triggers).
 --
 -- Una fila por (user_id, source_type, source_id = post_id): cada acción puntúa una
 -- sola vez por post. El índice único es lo que hace idempotente el `on conflict do

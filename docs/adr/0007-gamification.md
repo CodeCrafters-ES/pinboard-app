@@ -76,8 +76,8 @@ Función RPC `leaderboard(period_start, period_end, limit_n)` `SECURITY DEFINER`
 
 | Migración | Contenido | Issue |
 |---|---|---|
-| `20260807000000_create_user_points_n08_01_02.sql` | Enum `points_source`, tabla `user_points`, índice único `(user_id, source_type, source_id)`, índices de lectura por usuario y por fecha, RLS `user_points_select_own` | I-F-N08-01-02 |
-| `20260807000001_user_points_rules_n08_01_01.sql` | Helper `award_points()` + 4 trigger functions `award_points_*` con sus triggers | I-F-N08-01-01 |
+| `20260808000000_create_user_points_n08_01_02.sql` | Enum `points_source`, tabla `user_points`, índice único `(user_id, source_type, source_id)`, índices de lectura por usuario y por fecha, RLS `user_points_select_own` | I-F-N08-01-02 |
+| `20260808000001_user_points_rules_n08_01_01.sql` | Helper `award_points()` + 4 trigger functions `award_points_*` con sus triggers | I-F-N08-01-01 |
 
 Detalles que fija la implementación:
 

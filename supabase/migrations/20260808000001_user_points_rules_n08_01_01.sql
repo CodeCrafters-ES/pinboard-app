@@ -1,6 +1,6 @@
 -- Migration: N08-01-01 — Reglas de puntos: helper award_points + un trigger por fuente (#294)
 -- Epic N08 (#291) / Feature F-N08-01 (#292) / Issue I-F-N08-01-01 (#294).
--- Depends on: 20260807000000_create_user_points_n08_01_02.sql (enum + tabla + índice único).
+-- Depends on: 20260808000000_create_user_points_n08_01_02.sql (enum + tabla + índice único).
 -- refs: docs/adr/0007-gamification.md (tabla de valores, idempotencia, máximo 21)
 --       docs/adr/0001-engagement.md (status viewed/engaged/clicked, link_clicked append-only)
 --

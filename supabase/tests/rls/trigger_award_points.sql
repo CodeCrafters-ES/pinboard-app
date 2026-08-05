@@ -2,7 +2,7 @@
 -- Valores: clic 10 · comentario 5 · valoración 3 · reacción 2 · vista 1.
 -- Cubre las 5 acciones, la idempotencia por (user_id, source_type, post_id) y el
 -- máximo natural de 21 pts/post/usuario.
--- refs: docs/adr/0007-gamification.md, migración 20260807000001_user_points_rules_n08_01_01.sql
+-- refs: docs/adr/0007-gamification.md, migración 20260808000001_user_points_rules_n08_01_01.sql
 --
 -- Seed UUIDs (supabase/seed.sql):
 --   admin:   aaaaaaaa-0000-0000-0000-000000000001
