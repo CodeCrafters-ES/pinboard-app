@@ -167,6 +167,38 @@ join public.chat_participants cp on cp.chat_id = c.id and cp.user_id = auth.uid(
 Componente `components/ui/UnreadBadge` (`count`, `max = 99`): no renderiza nada cuando `count <= 0` (el badge se
 oculta en 0) y satura a `max`+ (p. ej. `99+`). La lista de chats lo pinta con `unread_count`.
 
+## Cliente (F-N07-03): crear chats y pantallas
+
+### Iniciar un DM: RPC `create_or_get_direct_chat`
+
+La RLS `chat_participants_insert` solo deja añadirte a ti mismo, así que el cliente no puede dar de alta al
+contraparte de un 1:1. Ese alta lo hace la RPC `public.create_or_get_direct_chat(other_user uuid) returns uuid`
+(`SECURITY DEFINER`, migración `20260806000000_create_or_get_direct_chat.sql`):
+
+- Rechaza `other_user = auth.uid()` (`22023`) y un usuario inexistente (`23503`).
+- Ordena el par `(least, greatest)`; si ya existe en `chat_direct_pairs`, devuelve su `chat_id`
+  (**idempotente**); si no, crea el `chats` y las **dos** filas de `chat_participants` (el trigger materializa
+  el par). Captura `unique_violation` (carrera) y devuelve el chat ganador.
+- Cliente: `createOrGetDirectChat({ otherUserId })` en `lib/chat.ts`.
+
+### `my_chats_v` enriquecida (para la lista)
+
+`20260806100000_chat_list_details.sql` amplía la vista (aditivo, sigue `security_invoker`) con el interlocutor
+del 1:1 y un preview del último mensaje: `partner_user_id`, `partner_name`, `partner_avatar_url`
+(join a la otra fila de `chat_participants` + `profiles_public`), `last_message_sender_id` y
+`last_message_content` (enmascarado a `null` si el más reciente está borrado).
+
+### Pantallas (`app/(app)/(tabs)/chat/`)
+
+| Ruta | Pantalla | Hooks |
+|---|---|---|
+| `index.tsx` | **ChatList** — chats con avatar/nombre, preview y `UnreadBadge` | `useUnreadCount` (refetch al enfocar) |
+| `[chatId].tsx` | **ChatThread** — FlatList invertida, envío optimista, presencia y typing | `useChat`, `usePresence`, `useTyping`, `markChatAsRead` |
+| `nuevo.tsx` | Picker de usuario (modal) → `createOrGetDirectChat` | `listProfilesPublic` |
+
+Componentes en `components/chat/`: `MessageBubble`, `ChatComposer`, `ChatListRow`, `TypingIndicator`,
+`ChatAvatar`. Los mensajes borrados se muestran como _"Mensaje eliminado"_ vía `displayContent`.
+
 ## Benchmark (validación de umbrales)
 
 Scripts en `supabase/bench/` (solo BD local; **no** corren en CI, que solo ejecuta `supabase/tests/rls/`):

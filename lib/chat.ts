@@ -14,13 +14,19 @@ export type MessageStatus = 'sent' | 'pending' | 'failed';
 // Mensaje con metadatos solo-cliente para el envío optimista (no persisten en BD).
 export type ChatMessage = Message & { _status?: MessageStatus; _clientId?: string };
 
-// Fila de la vista public.my_chats_v: un chat del usuario + su contador de no leídos.
+// Fila de la vista public.my_chats_v: un chat del usuario, su contador de no leídos, el
+// interlocutor del 1:1 y un preview del último mensaje (para la lista de chats).
 export type MyChat = {
   chat_id: string;
   is_group: boolean;
   last_message_at: string;
   last_read_at: string;
   unread_count: number;
+  partner_user_id: string | null;
+  partner_name: string | null;
+  partner_avatar_url: string | null;
+  last_message_sender_id: string | null;
+  last_message_content: string | null;
 };
 
 export const MESSAGES_PAGE_SIZE = 30;
@@ -116,7 +122,9 @@ export async function listMyChats({
 } = {}): Promise<MyChat[]> {
   const { data, error } = await client
     .from('my_chats_v')
-    .select('chat_id, is_group, last_message_at, last_read_at, unread_count')
+    .select(
+      'chat_id, is_group, last_message_at, last_read_at, unread_count, partner_user_id, partner_name, partner_avatar_url, last_message_sender_id, last_message_content',
+    )
     .order('last_message_at', { ascending: false });
 
   if (error) throw error;
@@ -127,6 +135,11 @@ export async function listMyChats({
     last_message_at: r.last_message_at ?? '',
     last_read_at: r.last_read_at ?? '',
     unread_count: r.unread_count ?? 0,
+    partner_user_id: r.partner_user_id ?? null,
+    partner_name: r.partner_name ?? null,
+    partner_avatar_url: r.partner_avatar_url ?? null,
+    last_message_sender_id: r.last_message_sender_id ?? null,
+    last_message_content: r.last_message_content ?? null,
   }));
 }
 
@@ -154,4 +167,29 @@ export async function markChatAsRead({
     .eq('user_id', user.id);
 
   if (error) throw error;
+}
+
+/**
+ * Inicia (o reabre) el chat 1:1 con otro usuario y devuelve su `chat_id`. Delega en la
+ * RPC `create_or_get_direct_chat` (SECURITY DEFINER), que da de alta al contraparte —
+ * algo que la RLS no permite hacer al cliente — y es idempotente por par de usuarios.
+ */
+export async function createOrGetDirectChat({
+  otherUserId,
+  client = supabase,
+}: {
+  otherUserId: string;
+  client?: SupabaseClient<Database>;
+}): Promise<string> {
+  const { data, error } = await client.rpc('create_or_get_direct_chat', {
+    other_user: otherUserId,
+  });
+  if (error) throw error;
+  if (!data) throw new Error('No se pudo abrir el chat');
+  return data;
+}
+
+// Texto a mostrar de un mensaje: los borrados (soft delete) nunca enseñan su content.
+export function displayContent(msg: Pick<Message, 'content' | 'deleted_at'>): string {
+  return msg.deleted_at ? 'Mensaje eliminado' : msg.content;
 }
