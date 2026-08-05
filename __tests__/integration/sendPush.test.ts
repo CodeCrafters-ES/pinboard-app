@@ -27,6 +27,11 @@ type FnResponse = { status: number; body: Record<string, unknown> | null };
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 500;
 
+// El edge runtime recicla isolates a mitad de suite; sin corte, una petición servida
+// por un worker que se está reiniciando deja el `fetch` colgado y agota el timeout del
+// test sin llegar a reintentar. Con el corte, ese cuelgue se trata como error de red.
+const REQUEST_TIMEOUT_MS = 8000;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -52,6 +57,7 @@ async function callFn(
           'Content-Type': 'application/json',
           ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
         },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         ...(method === 'POST' ? { body: rawBody ?? JSON.stringify(body) } : {}),
       });
       last = { status: res.status, body: await res.json().catch(() => null) };
@@ -304,6 +310,7 @@ describe('process-push-receipts Edge Function (integration)', () => {
             'Content-Type': 'application/json',
             ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
           },
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
           ...(method === 'POST' ? { body: '{}' } : {}),
         });
         last = { status: res.status, body: await res.json().catch(() => null) };
