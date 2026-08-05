@@ -12,7 +12,7 @@ Decisiones técnicas significativas del proyecto Nun Ibiza PinBoard App, documen
 | [ADR-004](0004-chat-realtime.md) | Arquitectura del chat en tiempo real: persistente / efímero | Aceptado |
 | [ADR-005](0005-image-storage.md) | Almacenamiento de imágenes: buckets, paths, límites y pipeline cliente | Aceptado |
 | [ADR-006](0006-engagement-behavioral-signals.md) | Señales de comportamiento en engagement: `focused_seconds` y `max_scroll_pct` (extiende ADR-001) | Aceptado |
-| [ADR-007](0007-gamification.md) | Gamificación: puntos por engagement y ranking | Propuesto |
+| [ADR-007](0007-gamification.md) | Gamificación: puntos por engagement y ranking | Aceptado |
 
 ## Convenciones
 

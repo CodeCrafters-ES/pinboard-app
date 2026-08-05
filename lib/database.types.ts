@@ -58,6 +58,13 @@ export type Database = {
             referencedRelation: "chats"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "chat_direct_pairs_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: true
+            referencedRelation: "my_chats_v"
+            referencedColumns: ["chat_id"]
+          },
         ]
       }
       chat_participants: {
@@ -86,6 +93,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "chats"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_participants_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "my_chats_v"
+            referencedColumns: ["chat_id"]
           },
         ]
       }
@@ -244,6 +258,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "chats"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "my_chats_v"
+            referencedColumns: ["chat_id"]
           },
         ]
       }
@@ -592,6 +613,33 @@ export type Database = {
           },
         ]
       }
+      user_points: {
+        Row: {
+          awarded_at: string
+          id: string
+          points: number
+          source_id: string
+          source_type: Database["public"]["Enums"]["points_source"]
+          user_id: string
+        }
+        Insert: {
+          awarded_at?: string
+          id?: string
+          points: number
+          source_id: string
+          source_type: Database["public"]["Enums"]["points_source"]
+          user_id: string
+        }
+        Update: {
+          awarded_at?: string
+          id?: string
+          points?: number
+          source_id?: string
+          source_type?: Database["public"]["Enums"]["points_source"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       messages_public_v: {
@@ -703,6 +751,15 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      award_points: {
+        Args: {
+          p_points: number
+          p_post_id: string
+          p_source: Database["public"]["Enums"]["points_source"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       create_or_get_direct_chat: {
         Args: { other_user: string }
         Returns: string
@@ -715,6 +772,12 @@ export type Database = {
     }
     Enums: {
       event_color: "brown" | "sea" | "sage" | "amber" | "parchment"
+      points_source:
+        | "post_viewed"
+        | "post_clicked"
+        | "post_reacted"
+        | "post_rated"
+        | "post_commented"
       reaction_type: "like" | "dislike" | "love"
       user_role: "staff" | "manager" | "admin"
     }
@@ -848,6 +911,13 @@ export const Constants = {
   public: {
     Enums: {
       event_color: ["brown", "sea", "sage", "amber", "parchment"],
+      points_source: [
+        "post_viewed",
+        "post_clicked",
+        "post_reacted",
+        "post_rated",
+        "post_commented",
+      ],
       reaction_type: ["like", "dislike", "love"],
       user_role: ["staff", "manager", "admin"],
     },
