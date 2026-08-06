@@ -652,7 +652,40 @@ export type Database = {
           id: string | null
           sender_id: string | null
         }
-        Relationships: []
+        Insert: {
+          chat_id?: string | null
+          content?: never
+          created_at?: string | null
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string | null
+          sender_id?: string | null
+        }
+        Update: {
+          chat_id?: string | null
+          content?: never
+          created_at?: string | null
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string | null
+          sender_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "my_chats_v"
+            referencedColumns: ["chat_id"]
+          },
+        ]
       }
       my_chats_v: {
         Row: {

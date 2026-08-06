@@ -60,7 +60,7 @@ create policy user_points_select_own on public.user_points
 revoke insert, update, delete on public.user_points from authenticated, anon;
 ```
 
-Un helper `award_points()` idempotente (`insert … on conflict do nothing`) y **un trigger por tabla fuente**: `engagement_sessions` (vista 1 al abrir, clic 10 cuando `status = 'clicked'`/`link_clicked`), `post_reactions` (2), `post_ratings` (3), `post_comments` (5, solo si `deleted_at is null`). Detalle en I-F-N08-01-01.
+Un helper `award_points()` idempotente (`insert … on conflict do nothing`) y **un trigger por tabla fuente**: `engagement_sessions` (vista 1 al abrir, clic 10 cuando `status = 'clicked'`/`link_clicked`), `post_reactions` (2), `post_ratings` (3), `post_comments` (5, al insertar). Detalle en I-F-N08-01-01; el porqué de que el comentario no dependa de un borrado lógico, en «Implementación (F-N08-01)».
 
 ### Opción B (descartada): cálculo derivado
 
