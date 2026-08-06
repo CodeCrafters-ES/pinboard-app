@@ -72,13 +72,7 @@ export function usePushNavigation(): void {
     // se perdería. Al autenticarse, este efecto vuelve a correr y navega.
     if (status !== 'authenticated') return;
 
-    const route = routeForTarget(pending);
     setPending(null);
-    if (!route) {
-      if (__DEV__) console.warn('[push] tipo sin pantalla todavía', pending);
-      return;
-    }
-
-    router.push(route as never);
+    router.push(routeForTarget(pending) as never);
   }, [pending, isRouterReady, status, router]);
 }

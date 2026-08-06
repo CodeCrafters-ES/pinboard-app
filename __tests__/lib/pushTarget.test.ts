@@ -41,8 +41,9 @@ describe('routeForTarget', () => {
     expect(routeForTarget({ type: 'event', id: ID })).toBe(`/(app)/(tabs)/calendario/${ID}`);
   });
 
-  // La pantalla llega en Hito 3; hasta entonces navegar daría "Unmatched Route".
-  it('todavía no tiene ruta para chat', () => {
-    expect(routeForTarget({ type: 'chat', id: ID })).toBeNull();
+  // La pantalla existe desde F-N07-03; el payload solo trae el chatId, que es lo
+  // único que la ruta necesita.
+  it('lleva un chat a su hilo', () => {
+    expect(routeForTarget({ type: 'chat', id: ID })).toBe(`/(app)/(tabs)/chat/${ID}`);
   });
 });
