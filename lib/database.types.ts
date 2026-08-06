@@ -613,6 +613,24 @@ export type Database = {
           },
         ]
       }
+      user_blocks: {
+        Row: {
+          blocked_user_id: string
+          blocker_user_id: string
+          created_at: string
+        }
+        Insert: {
+          blocked_user_id: string
+          blocker_user_id: string
+          created_at?: string
+        }
+        Update: {
+          blocked_user_id?: string
+          blocker_user_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       user_points: {
         Row: {
           awarded_at: string
@@ -797,7 +815,12 @@ export type Database = {
         Args: { other_user: string }
         Returns: string
       }
+      direct_chat_blocked: {
+        Args: { other_user: string }
+        Returns: boolean
+      }
       is_admin: { Args: never; Returns: boolean }
+      is_blocked: { Args: { p_a: string; p_b: string }; Returns: boolean }
       is_chat_participant: { Args: { p_chat_id: string }; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }

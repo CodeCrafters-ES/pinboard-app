@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, View } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams } from 'expo-router';
 
@@ -9,6 +9,7 @@ import { useSession } from '@/hooks/useSession';
 import { useChat } from '@/hooks/useChat';
 import { usePresence } from '@/hooks/usePresence';
 import { useTyping } from '@/hooks/useTyping';
+import { useUserBlock } from '@/hooks/useUserBlock';
 import { markChatAsRead, type ChatMessage } from '@/lib/chat';
 
 const MARK_READ_THROTTLE_MS = 2000;
@@ -28,6 +29,12 @@ export default function ChatThreadScreen() {
     useChat(chatId);
   const { onlineUserIds } = usePresence(chatId);
   const { typingUserIds, setTyping } = useTyping(chatId);
+  const {
+    iBlocked,
+    blocked,
+    loading: blockLoading,
+    toggle: toggleBlock,
+  } = useUserBlock(partnerId ?? null);
 
   const partnerOnline = !!partnerId && onlineUserIds.includes(partnerId);
   const partnerTyping = typingUserIds.length > 0;
@@ -72,10 +79,24 @@ export default function ChatThreadScreen() {
     <SafeAreaView className="flex-1 bg-nun-linen" edges={['bottom']}>
       <Stack.Screen options={{ title: name || 'Chat' }} />
 
-      <View className="px-4 py-1 border-b border-nun-parchment">
+      <View className="flex-row items-center justify-between px-4 py-1 border-b border-nun-parchment">
         <Text className="text-xs text-nun-muted">
           {partnerOnline ? '● En línea' : 'Desconectado'}
         </Text>
+        {partnerId ? (
+          <Pressable
+            onPress={toggleBlock}
+            disabled={blockLoading}
+            accessibilityRole="button"
+            accessibilityLabel={iBlocked ? 'Desbloquear usuario' : 'Bloquear usuario'}
+            hitSlop={8}
+            className="active:opacity-60"
+          >
+            <Text className={`text-xs font-semibold ${iBlocked ? 'text-nun-muted' : 'text-nun-error'}`}>
+              {iBlocked ? 'Desbloquear' : 'Bloquear'}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <KeyboardAvoidingView
@@ -109,8 +130,20 @@ export default function ChatThreadScreen() {
           />
         )}
 
-        <TypingIndicator visible={partnerTyping} name={name} />
-        <ChatComposer onSend={sendMessage} onTyping={setTyping} />
+        {blocked ? (
+          <View className="px-4 py-3 border-t border-nun-parchment bg-nun-linen">
+            <Text className="text-[13px] text-nun-muted text-center">
+              {iBlocked
+                ? 'Has bloqueado a este usuario. No puedes enviarle mensajes.'
+                : 'No puedes enviar mensajes en este chat (bloqueo activo).'}
+            </Text>
+          </View>
+        ) : (
+          <>
+            <TypingIndicator visible={partnerTyping} name={name} />
+            <ChatComposer onSend={sendMessage} onTyping={setTyping} />
+          </>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
