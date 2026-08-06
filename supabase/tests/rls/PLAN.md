@@ -138,3 +138,4 @@ El PR debe incluir **policy + test en el mismo commit/rama**. No se aceptan poli
 | `push_tokens` (F-S00-04 / N06-01-01) | `rls_push_tokens.sql`, `schema_push_tokens.sql` | ✅ Implementado |
 | `role_audit` (F-S00-05) | `rls_role_audit.sql` | ✅ Implementado |
 | `chats` / `chat_participants` / `messages` (F-N07-02) | `rls_chat.sql`, `rls_chat_update.sql`, `schema_chat.sql` | ✅ Implementado |
+| `user_blocks` + endurecimiento de `messages`/DM (F-N07-04-02) | `rls_user_blocks.sql`, `rls_messages_block.sql` | ✅ Implementado |
