@@ -60,10 +60,10 @@ begin
     v_url, 'POST', v_headers, '{}', v_timeout
   );
 
-  -- ── messages (Hito 3) ────────────────────────────────────────────────────
-  -- El contrato del handler ya acepta `messages`, pero mientras el envío de chat
-  -- sea un stub (F-N07-05) este trigger solo generaría tráfico inútil: se activa
-  -- ejecutando el script con -v enable_messages=true.
+  -- ── messages (push de chat, F-N07-05) ─────────────────────────────────────
+  -- El handler ya despacha el push de chat (I-F-N07-05-01). El trigger sigue
+  -- desactivado por defecto para no notificar antes de configurar el canal/secret
+  -- del entorno: se activa ejecutando el script con -v enable_messages=true.
   if current_setting('send_push.enable_messages', true) = 'true' then
     drop trigger if exists messages_send_push on public.messages;
     execute format(

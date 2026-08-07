@@ -4,9 +4,15 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { z } from 'npm:zod@3.23.8'
 
 import { processTickets, type PurgeDb } from '../_shared/push/purge.ts'
-import { EXPO_PUSH_URL, sendExpoBatch } from './expo.ts'
-import { eventMessage, postMessage } from './messages.ts'
-import { authorUserId, recipientTokens, type PushDb } from './recipients.ts'
+import { EXPO_PUSH_URL, sendExpoBatch, type PushTokenRow } from './expo.ts'
+import { chatMessage, eventMessage, postMessage, type PushMessage } from './messages.ts'
+import {
+  authorUserId,
+  chatRecipientTokens,
+  recipientTokens,
+  senderDisplayName,
+  type PushDb,
+} from './recipients.ts'
 
 // Punto de entrada de los Database Webhooks de Supabase.
 // Transporte (autenticación, validación, idempotencia, respuesta rápida):
@@ -47,6 +53,8 @@ const MessageRecord = z.object({
   id: z.string().uuid(),
   chat_id: z.string().uuid(),
   sender_id: z.string().uuid(),
+  // El webhook manda la fila completa; en INSERT content es 1–4000 (check de la tabla).
+  content: z.string(),
   created_at: z.string(),
 })
 
@@ -158,7 +166,6 @@ type DispatchResult = {
   sent_count: number
   failed_count: number
   purged_count?: number
-  pending?: true
 }
 
 // service_role para saltarse RLS: los tokens son "own" y ningún usuario puede leer
@@ -167,12 +174,14 @@ function adminClient(): PushDb & PurgeDb {
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY) as unknown as PushDb & PurgeDb
 }
 
-async function deliver(
+// Envía a una lista ya resuelta de tokens y procesa la purga. La resolución de
+// destinatarios varía por tabla (broadcast para posts/eventos, participantes del chat
+// para mensajes), pero el envío + purga es común: vive aquí para no duplicarse.
+async function deliverToTokens(
   db: PushDb & PurgeDb,
-  excludeUserId: string | null,
-  message: ReturnType<typeof postMessage>,
+  tokens: PushTokenRow[],
+  message: PushMessage,
 ): Promise<DispatchResult> {
-  const tokens = await recipientTokens(db, excludeUserId)
   const { sent_count, failed_count, tickets } = await sendExpoBatch({
     tokens,
     message,
@@ -187,6 +196,16 @@ async function deliver(
   }
 
   return { recipients_count: tokens.length, sent_count, failed_count, purged_count }
+}
+
+// Broadcast a toda la plantilla menos un usuario (posts/eventos).
+async function deliver(
+  db: PushDb & PurgeDb,
+  excludeUserId: string | null,
+  message: PushMessage,
+): Promise<DispatchResult> {
+  const tokens = await recipientTokens(db, excludeUserId)
+  return deliverToTokens(db, tokens, message)
 }
 
 async function handlePostInsert(
@@ -206,18 +225,17 @@ async function handleEventInsert(
   return deliver(db, record.author_id, eventMessage(record))
 }
 
-// Hito 3 (EPIC-N07 / F-N07-05): el contrato queda cerrado desde ahora para que
-// activar el push de chat sea solo configurar el webhook de `messages`.
+// EPIC-N07 / F-N07-05 (#289): notifica a los participantes del chat menos al remitente.
+// El nombre del remitente (título) y los tokens de destino se resuelven en paralelo.
 async function handleMessageInsert(
   record: z.infer<typeof MessageRecord>,
 ): Promise<DispatchResult> {
-  console.log('send-push handler deferred', {
-    table: 'messages',
-    record_id: record.id,
-    chat_id: record.chat_id,
-    milestone: 'hito-3',
-  })
-  return { recipients_count: 0, sent_count: 0, failed_count: 0, pending: true }
+  const db = adminClient()
+  const [name, tokens] = await Promise.all([
+    senderDisplayName(db, record.sender_id),
+    chatRecipientTokens(db, record.chat_id, record.sender_id),
+  ])
+  return deliverToTokens(db, tokens, chatMessage(record, name))
 }
 
 async function dispatch(payload: Payload): Promise<DispatchResult> {

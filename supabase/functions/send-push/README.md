@@ -1,24 +1,24 @@
 # Edge Function: `send-push`
 
 Punto de entrada de los **Database Webhooks** de Supabase para las notificaciones push.
-Postgres avisa a esta función cuando se publica un post o se crea un evento, y ella
-resuelve destinatarios y llama a la Expo Push API. Implementa el payload de
-[ADR-003](../../../docs/adr/0003-push-deep-linking.md).
+Postgres avisa a esta función cuando se publica un post, se crea un evento o llega un
+mensaje de chat, y ella resuelve destinatarios y llama a la Expo Push API. Implementa el
+payload de [ADR-003](../../../docs/adr/0003-push-deep-linking.md).
 
-**Issues:** I-F-N06-02-01 (#269), I-F-N06-02-02 (#270), I-F-N06-02-03 (#271) ·
-**Feature:** F-N06-02 (#265)
+**Issues:** I-F-N06-02-01 (#269), I-F-N06-02-02 (#270), I-F-N06-02-03 (#271),
+I-F-N07-05-01 (#289) · **Features:** F-N06-02 (#265), F-N07-05 (#279)
 
-> **Estado.** Completa para posts y eventos. El handler de `messages` es un stub hasta
-> Hito 3 (F-N07-05).
+> **Estado.** Completa para posts, eventos y mensajes de chat. El webhook de `messages`
+> se habilita por entorno (ver [Configuración](#configuración)).
 
 ## Módulos
 
 | Fichero | Rol |
 |---|---|
 | `index.ts` | Autenticación, validación, idempotencia y orquestación |
-| `messages.ts` | Copy en ES, fecha en `Europe/Madrid`, truncado a 120 caracteres |
+| `messages.ts` | Copy en ES, fecha en `Europe/Madrid`, truncado (120 general, 80 en chat) |
 | `expo.ts` | Llamada a la Expo Push API en lotes de 100 y recolección de tickets |
-| `recipients.ts` | Destinatarios: mapeo del autor y tokens excluyéndolo |
+| `recipients.ts` | Destinatarios: mapeo del autor, broadcast excluyéndolo y participantes de un chat |
 | `../_shared/push/tickets.ts` | Clasificación de acuses de Expo |
 | `../_shared/push/purge.ts` | Borrado de tokens inválidos y cola de receipts |
 
@@ -77,6 +77,7 @@ Los campos extra de la fila se ignoran sin error.
 | `INSERT` de post en borrador | `reason: post_not_published` |
 | `UPDATE` de post ya publicado (edición) | `reason: post_already_published` |
 | `INSERT` de evento | Despacha |
+| `INSERT` de mensaje | Despacha (a los participantes del chat ≠ remitente) |
 | `UPDATE`/`DELETE` de evento o mensaje | `reason: operation_not_notifiable` |
 
 La transición `draft → published` **no es opcional**: los posts se crean como borrador
@@ -89,10 +90,17 @@ dejaría sin notificar el flujo real de publicación.
 |---|---|---|---|
 | Post publicado | Todos los tokens menos los del autor | `Nuevo post` | Título del post (≤120) |
 | Evento nuevo | Todos los tokens menos los del autor | `Nuevo evento` | `Título · vie 24 jul, 17:00` |
-| Mensaje (Hito 3) | Participantes del chat ≠ autor | Nombre del emisor | Extracto del mensaje |
+| Mensaje de chat | Participantes del chat ≠ remitente | Nombre del emisor | Extracto del mensaje (≤80) |
 
-`data` sigue ADR-003: `{ type: 'post' | 'event' | 'chat', id }`. Canal `general`
-(`chat` en Hito 3, con `priority: high`).
+`data` sigue ADR-003: `{ type: 'post' | 'event' | 'chat', id }` (para chat, `id` es el
+`chat_id`, no el del mensaje). Canal `general` para post/evento; `chat` con
+`priority: high` para mensajes.
+
+**Destinatarios de chat.** A diferencia del broadcast de posts/eventos, el push de un
+mensaje va solo a los `chat_participants` del chat distintos del remitente (`neq`), y
+luego a sus `push_tokens` (`in`). El nombre del remitente para el título se lee de
+`profiles_public`. `send-push` corre con `service_role`; el acceso a `chat_participants`
+y `profiles_public` lo concede la migración `20260810000000_grant_chat_push_service_role.sql`.
 
 **Exclusión del autor.** `posts.author_id` referencia `profiles.id`, mientras que
 `push_tokens.user_id` guarda `auth.uid()`: hace falta traducir uno en otro leyendo
@@ -163,13 +171,15 @@ casos dejan `sent_count` y `failed_count` a cero y se leen igual.
 | Variable | Uso |
 |---|---|
 | `PUSH_WEBHOOK_SECRET` | Secreto compartido con el trigger. `supabase secrets set PUSH_WEBHOOK_SECRET=…` |
-| `SUPABASE_SERVICE_ROLE_KEY` | La inyecta la plataforma; alternativa aceptada como Bearer y necesaria para leer `profiles` y `push_tokens`. |
+| `SUPABASE_SERVICE_ROLE_KEY` | La inyecta la plataforma; alternativa aceptada como Bearer y necesaria para leer `profiles`, `push_tokens`, `chat_participants` y `profiles_public`. |
 | `SUPABASE_URL` | La inyecta la plataforma. |
 | `EXPO_PUSH_URL` | Opcional. Redirige el envío; por defecto, la Expo Push API. En local y CI apunta a un puerto cerrado (ver abajo). |
 
 Los pasos para crear los webhooks en un entorno nuevo están en
 [`docs/push.md`](../../../docs/push.md#database-webhooks); el script reproducible es
-[`supabase/webhooks/send_push_webhooks.sql`](../../webhooks/send_push_webhooks.sql).
+[`supabase/webhooks/send_push_webhooks.sql`](../../webhooks/send_push_webhooks.sql). El
+trigger de `messages` (push de chat) **no** se crea por defecto: hay que ejecutar el script
+con `-v enable_messages=true`.
 
 ## Tests
 
@@ -177,7 +187,7 @@ Los pasos para crear los webhooks en un entorno nuevo están en
 |---|---|---|
 | `__tests__/lib/sendPushMessages.test.ts` | Copy, truncado y fecha localizada | `test` |
 | `__tests__/lib/sendPushExpo.test.ts` | Troceado en 100, tickets y errores parciales (`fetch` mockeado) | `test` |
-| `__tests__/integration/sendPushRecipients.test.ts` | Mapeo del autor y exclusión, contra la BD local | `integration-test` |
+| `__tests__/integration/sendPushRecipients.test.ts` | Mapeo del autor, exclusión y destinatarios de chat, contra la BD local | `integration-test` |
 | `__tests__/integration/sendPush.test.ts` | Auth, validación, notificabilidad, idempotencia | `integration-test` |
 | `supabase/tests/rls/grants_send_push.sql` | GRANTs de `service_role` sobre `profiles` | `rls-tests` |
 

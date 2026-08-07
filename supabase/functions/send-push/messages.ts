@@ -69,6 +69,25 @@ export function postMessage(record: { id: string; title: string }): PushMessage 
   }
 }
 
+/**
+ * Notificación de un mensaje de chat 1:1 (F-N07-05). El título es el nombre del
+ * remitente (fallback genérico si no se pudo resolver); el cuerpo es el contenido
+ * recortado a 80 caracteres (AC de #289, más corto que el general para que quepa en la
+ * preview de la notificación). El deep-link apunta al **chat**, no al mensaje.
+ */
+export function chatMessage(
+  record: { chat_id: string; content: string },
+  senderName: string | null,
+): PushMessage {
+  return {
+    title: senderName?.trim() || 'Nuevo mensaje',
+    body: truncate(record.content, 80) || 'Te ha enviado un mensaje',
+    data: { type: 'chat', id: record.chat_id },
+    channelId: 'chat',
+    priority: 'high',
+  }
+}
+
 export function eventMessage(record: {
   id: string
   title: string

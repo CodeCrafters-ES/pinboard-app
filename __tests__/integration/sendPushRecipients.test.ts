@@ -13,7 +13,9 @@ import { createClient } from '@supabase/supabase-js';
 
 import {
   authorUserId,
+  chatRecipientTokens,
   recipientTokens,
+  senderDisplayName,
   type PushDb,
 } from '../../supabase/functions/send-push/recipients';
 import type { Database } from '@/lib/database.types';
@@ -143,6 +145,74 @@ describe('send-push recipients (integration)', () => {
         user_id: expect.any(String),
         platform: expect.stringMatching(/^(ios|android|web)$/),
       });
+    });
+  });
+
+  // Destinatarios acotados a un chat 1:1 (F-N07-05). A diferencia del broadcast de
+  // posts/eventos, aquí solo se notifica a los participantes del chat menos el remitente.
+  describe('chat recipients', () => {
+    let chatId: string;
+
+    beforeAll(async () => {
+      const { data, error } = await adminClient
+        .from('chats')
+        .insert({ is_group: false })
+        .select('id')
+        .single();
+      if (error) throw error;
+      chatId = data!.id;
+
+      // Una fila por sentencia: el trigger chat_direct_pairs_sync materializa el par al
+      // completarse el segundo participante (un multi-fila lo intentaría dos veces).
+      const p1 = await adminClient
+        .from('chat_participants')
+        .insert({ chat_id: chatId, user_id: managerUserId });
+      if (p1.error) throw p1.error;
+      const p2 = await adminClient
+        .from('chat_participants')
+        .insert({ chat_id: chatId, user_id: staffUserId });
+      if (p2.error) throw p2.error;
+    });
+
+    afterAll(async () => {
+      // Cascade: se lleva chat_participants y chat_direct_pairs.
+      await adminClient.from('chats').delete().eq('id', chatId);
+    });
+
+    it('excluye al remitente y devuelve los tokens del otro participante', async () => {
+      const tokens = await chatRecipientTokens(db, chatId, managerUserId);
+
+      expect(tokens.some((t) => t.user_id === managerUserId)).toBe(false);
+      const staffMarked = tokens.filter(
+        (t) => t.user_id === staffUserId && t.token.includes(RUN_MARKER),
+      );
+      expect(staffMarked).toHaveLength(2);
+    });
+
+    it('resuelve al otro sentido: el remitente staff no recibe, el manager sí', async () => {
+      const tokens = await chatRecipientTokens(db, chatId, staffUserId);
+
+      expect(tokens.some((t) => t.user_id === staffUserId)).toBe(false);
+      expect(tokens.map((t) => t.token)).toContain(`ExponentPushToken[${RUN_MARKER}-manager]`);
+    });
+
+    it('sin participantes distintos del remitente no hay destinatarios', async () => {
+      // Un chat donde solo participo yo: no hay a quién notificar.
+      const { data } = await adminClient.from('chats').insert({ is_group: false }).select('id').single();
+      const soloChatId = data!.id;
+      await adminClient.from('chat_participants').insert({ chat_id: soloChatId, user_id: managerUserId });
+
+      const tokens = await chatRecipientTokens(db, soloChatId, managerUserId);
+      expect(tokens).toEqual([]);
+
+      await adminClient.from('chats').delete().eq('id', soloChatId);
+    });
+
+    it('senderDisplayName resuelve el nombre público del remitente (grant service_role)', async () => {
+      const name = await senderDisplayName(db, managerUserId);
+
+      expect(typeof name).toBe('string');
+      expect((name ?? '').length).toBeGreaterThan(0);
     });
   });
 });

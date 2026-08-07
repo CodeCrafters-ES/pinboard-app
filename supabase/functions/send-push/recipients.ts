@@ -18,14 +18,37 @@ interface ProfilesQuery {
   }
 }
 
+interface ProfilesPublicQuery {
+  select(columns: 'full_name'): {
+    eq(
+      column: 'user_id',
+      value: string,
+    ): { maybeSingle(): PromiseLike<Result<{ full_name: string | null }>> }
+  }
+}
+
+interface ChatParticipantsQuery {
+  select(columns: 'user_id'): {
+    eq(
+      column: 'chat_id',
+      value: string,
+    ): {
+      neq(column: 'user_id', value: string): PromiseLike<Result<{ user_id: string }[]>>
+    }
+  }
+}
+
 interface PushTokensQuery {
   select(columns: string): PromiseLike<Result<PushTokenRow[]>> & {
     neq(column: 'user_id', value: string): PromiseLike<Result<PushTokenRow[]>>
+    in(column: 'user_id', values: string[]): PromiseLike<Result<PushTokenRow[]>>
   }
 }
 
 export interface PushDb {
   from(table: 'profiles'): ProfilesQuery
+  from(table: 'profiles_public'): ProfilesPublicQuery
+  from(table: 'chat_participants'): ChatParticipantsQuery
   from(table: 'push_tokens'): PushTokensQuery
 }
 
@@ -62,4 +85,59 @@ export async function recipientTokens(
     return []
   }
   return data ?? []
+}
+
+/**
+ * Tokens de los participantes de un chat 1:1 **menos** los del remitente (F-N07-05).
+ * A diferencia de `recipientTokens` (broadcast a toda la plantilla para posts/eventos),
+ * aquí el alcance es solo el chat: se resuelven los `chat_participants` distintos del
+ * remitente y luego sus tokens. Sin participantes → sin tokens (chat vacío o solo yo).
+ */
+export async function chatRecipientTokens(
+  db: PushDb,
+  chatId: string,
+  senderId: string,
+): Promise<PushTokenRow[]> {
+  const { data: participants, error } = await db
+    .from('chat_participants')
+    .select('user_id')
+    .eq('chat_id', chatId)
+    .neq('user_id', senderId)
+
+  if (error) {
+    console.error('send-push chat participants query failed', { chat_id: chatId, error: error.message })
+    return []
+  }
+
+  const ids = (participants ?? []).map((p) => p.user_id)
+  if (ids.length === 0) return []
+
+  const { data, error: tokensError } = await db
+    .from('push_tokens')
+    .select('token, user_id, platform')
+    .in('user_id', ids)
+
+  if (tokensError) {
+    console.error('send-push chat tokens query failed', { chat_id: chatId, error: tokensError.message })
+    return []
+  }
+  return data ?? []
+}
+
+/**
+ * Nombre público del remitente para el título del push. Lee `profiles_public` (sin
+ * email); si falla o no hay perfil, devuelve null y el composer cae en el copy genérico.
+ */
+export async function senderDisplayName(db: PushDb, senderId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from('profiles_public')
+    .select('full_name')
+    .eq('user_id', senderId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('send-push sender lookup failed', { sender_id: senderId, error: error.message })
+    return null
+  }
+  return data?.full_name ?? null
 }

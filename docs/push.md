@@ -110,11 +110,15 @@ para que un entorno nuevo se configure igual y sin clics:
 |---|---|---|---|
 | `posts_send_push` | `public.posts` | `INSERT`, `UPDATE OF status` | Activo |
 | `events_send_push` | `public.events` | `INSERT` | Activo |
-| `messages_send_push` | `public.messages` | `INSERT` | Hito 3 (`-v enable_messages=true`) |
+| `messages_send_push` | `public.messages` | `INSERT` | Implementado; opt-in con `-v enable_messages=true` |
 
 `posts` escucha también el `UPDATE` porque los posts nacen como borrador y se publican después
 (`hooks/usePosts.ts`): con un webhook solo de `INSERT`, publicar no notificaría a nadie. Qué merece push y qué
 no lo decide la función, no el trigger — ver la tabla de notificabilidad en su README.
+
+El push de chat (F-N07-05, #289) ya está implementado en la función, pero su trigger queda **desactivado por
+defecto**: se crea pasando `-v enable_messages=true` al script. Así se activa por entorno una vez configurados
+el secreto y el canal Android `chat`.
 
 ### Configurar un entorno nuevo
 

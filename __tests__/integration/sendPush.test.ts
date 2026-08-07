@@ -206,7 +206,8 @@ describe('send-push Edge Function (integration)', () => {
       expect(body?.dispatched).toBe(true);
     });
 
-    // El webhook de messages se activa en Hito 3; el contrato ya responde 200.
+    // El handler de messages despacha el push de chat (F-N07-05); el transporte responde
+    // 200 y el envío real corre en segundo plano.
     it('acepta el INSERT de un mensaje', async () => {
       const { status, body } = await callFn(messagePayload());
 
