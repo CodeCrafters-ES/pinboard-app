@@ -36,6 +36,10 @@ const STAFF = { email: 'staff@nun-ibiza.dev', password: 'password123' };
 
 const RUN_MARKER = `send_push_it_${Date.now()}`;
 
+// UUID con formato válido que no corresponde a ningún chat: sirve para el caso "sin
+// participantes" sin tener que crear (ni limpiar) un chat de un solo miembro.
+const NONEXISTENT_CHAT_ID = '00000000-0000-4000-8000-000000000000';
+
 const managerClient = createClient<Database>(LOCAL_URL, LOCAL_ANON_KEY);
 const staffClient = createClient<Database>(LOCAL_URL, LOCAL_ANON_KEY);
 const adminClient = createClient<Database>(LOCAL_URL, LOCAL_SERVICE_ROLE_KEY);
@@ -154,29 +158,15 @@ describe('send-push recipients (integration)', () => {
     let chatId: string;
 
     beforeAll(async () => {
-      const { data, error } = await adminClient
-        .from('chats')
-        .insert({ is_group: false })
-        .select('id')
-        .single();
+      // El chat se crea con la RPC (SECURITY DEFINER), que da de alta a ambos
+      // participantes. No se usa el adminClient (service_role) para insertar en `chats`:
+      // esa tabla se concede solo a `authenticated`, y send-push nunca escribe ahí — solo
+      // LEE chat_participants (grant de 20260810000000). La RPC es idempotente por par.
+      const { data, error } = await managerClient.rpc('create_or_get_direct_chat', {
+        other_user: staffUserId,
+      });
       if (error) throw error;
-      chatId = data!.id;
-
-      // Una fila por sentencia: el trigger chat_direct_pairs_sync materializa el par al
-      // completarse el segundo participante (un multi-fila lo intentaría dos veces).
-      const p1 = await adminClient
-        .from('chat_participants')
-        .insert({ chat_id: chatId, user_id: managerUserId });
-      if (p1.error) throw p1.error;
-      const p2 = await adminClient
-        .from('chat_participants')
-        .insert({ chat_id: chatId, user_id: staffUserId });
-      if (p2.error) throw p2.error;
-    });
-
-    afterAll(async () => {
-      // Cascade: se lleva chat_participants y chat_direct_pairs.
-      await adminClient.from('chats').delete().eq('id', chatId);
+      chatId = data as string;
     });
 
     it('excluye al remitente y devuelve los tokens del otro participante', async () => {
@@ -197,15 +187,9 @@ describe('send-push recipients (integration)', () => {
     });
 
     it('sin participantes distintos del remitente no hay destinatarios', async () => {
-      // Un chat donde solo participo yo: no hay a quién notificar.
-      const { data } = await adminClient.from('chats').insert({ is_group: false }).select('id').single();
-      const soloChatId = data!.id;
-      await adminClient.from('chat_participants').insert({ chat_id: soloChatId, user_id: managerUserId });
-
-      const tokens = await chatRecipientTokens(db, soloChatId, managerUserId);
+      // Un chat inexistente no tiene participantes: no hay a quién notificar.
+      const tokens = await chatRecipientTokens(db, NONEXISTENT_CHAT_ID, managerUserId);
       expect(tokens).toEqual([]);
-
-      await adminClient.from('chats').delete().eq('id', soloChatId);
     });
 
     it('senderDisplayName resuelve el nombre público del remitente (grant service_role)', async () => {
