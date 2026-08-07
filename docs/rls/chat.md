@@ -71,16 +71,25 @@ Expresiones exactas en
 | `chats_insert_authenticated` | INSERT | — | `true` |
 | `chat_participants_select` | SELECT | `user_id = auth.uid() or is_chat_participant(chat_id) or is_admin()` | — |
 | `chat_participants_insert` | INSERT | — | `is_admin()` (§ — alta directa cerrada, #274) |
-| `chat_participants_update_own` | UPDATE | `user_id = auth.uid()` | `user_id = auth.uid()` |
+| `chat_participants_update_own` | UPDATE | `user_id = auth.uid()` | `user_id = auth.uid()` (◊) |
 | `messages_select_participant` | SELECT | `is_chat_participant(chat_id) or is_admin()` | — |
 | `messages_insert_participant` | INSERT | — | `is_chat_participant(chat_id) and sender_id = auth.uid()` **and** sin bloqueo con el contraparte (‡) |
-| `messages_update_own` | UPDATE | `sender_id = auth.uid() or is_admin()` | `sender_id = auth.uid() or is_admin()` |
+| `messages_update_own` | UPDATE | `sender_id = auth.uid() or is_admin()` | `sender_id = auth.uid() or is_admin()` (◊) |
 | `messages_no_hard_delete` | DELETE | `is_admin()` | — |
 
 > (‡) F-N07-04 (#288) endurece el `with check` de `messages_insert_participant` añadiendo
 > `and not exists (select 1 from chat_participants cp_other where cp_other.chat_id = messages.chat_id and
 > cp_other.user_id <> auth.uid() and is_blocked(auth.uid(), cp_other.user_id))`: no se envía a un
 > interlocutor bloqueado (en cualquier sentido). Detalle en §Bloqueo entre usuarios.
+>
+> (◊) **Identidad inmutable en UPDATE (#274, `20260812000000`):** el `with check` de estas policies solo
+> fija `user_id`/`sender_id`, no `chat_id`. Sin protección, un usuario podía `update ... set chat_id =
+> '<chat_ajeno>'` sobre su propia fila y **reabrir el self-join por la vía de UPDATE** (participante) o
+> **inyectar** su mensaje en un chat ajeno (mensaje) — la misma clase que `20260811000000` cerró para INSERT.
+> Como la RLS no puede referirse a `OLD`, se congela con triggers `BEFORE UPDATE`
+> (`chat_participants_freeze_identity`, `messages_freeze_identity`) que rechazan (`42501`) cambiar `chat_id`
+> (y `user_id`/`sender_id`). El cliente solo actualiza `last_read_at` y `content`/`deleted_at`, así que no se
+> ve afectado.
 
 ## Bloqueo entre usuarios (F-N07-04, #288)
 
@@ -118,12 +127,14 @@ y **no** es admin, lo que permite probar el camino negativo puro). Incluye:
 - Helper `is_chat_participant`: `true` para participante, `false` para no participante.
 
 Cobertura de UPDATE/DELETE (#283) en
-[`supabase/tests/rls/rls_chat_update.sql`](../../supabase/tests/rls/rls_chat_update.sql) — 10 assertions:
+[`supabase/tests/rls/rls_chat_update.sql`](../../supabase/tests/rls/rls_chat_update.sql) — 12 assertions:
 
 - Sender: edita su `content` (fija `edited_at`) y hace soft delete; no puede editar mensaje ajeno.
 - `authenticated` no-admin: `DELETE` físico rechazado (0 filas).
 - `last_read_at`: el participante actualiza el suyo; el de otro devuelve 0 filas.
 - Admin: soft-delete y edición de cualquier mensaje, y `DELETE` físico.
+- Identidad inmutable (◊): staff no puede migrar su fila de participante ni su mensaje a un chat ajeno
+  mutando `chat_id` (`42501`).
 
 Ejecución local:
 
