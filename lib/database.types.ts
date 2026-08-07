@@ -815,15 +815,23 @@ export type Database = {
         Args: { other_user: string }
         Returns: string
       }
-      direct_chat_blocked: {
-        Args: { other_user: string }
-        Returns: boolean
-      }
+      direct_chat_blocked: { Args: { other_user: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_blocked: { Args: { p_a: string; p_b: string }; Returns: boolean }
       is_chat_participant: { Args: { p_chat_id: string }; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
+      leaderboard: {
+        Args: { limit_n?: number; period_end: string; period_start: string }
+        Returns: {
+          avatar_url: string
+          full_name: string
+          is_self: boolean
+          rank: number
+          total_points: number
+          user_id: string
+        }[]
+      }
       refresh_post_engagement_daily: { Args: never; Returns: undefined }
     }
     Enums: {
