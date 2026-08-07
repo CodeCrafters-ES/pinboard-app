@@ -22,8 +22,9 @@ ocultar un botón por UX, pero si la policy no permite la operación, la query f
   (F-N07-03).
 
 > **Cobertura:** SELECT/INSERT (I-F-N07-02-01, #282) y UPDATE/DELETE (I-F-N07-02-02, #283) están
-> implementados. La etiqueta "editado" y el render de "Mensaje eliminado" en la UI pertenecen a **F-N07-03**
-> (la pantalla de hilo de chat aún no existe).
+> implementados, así como el cliente de chat (**F-N07-03**: hilo, etiqueta "editado", render de "Mensaje
+> eliminado") y la moderación mínima (**F-N07-04**: vista `messages_public_v` que enmascara los borrados y
+> modelo `user_blocks`; ver §Bloqueo entre usuarios más abajo).
 
 ## Helper
 
@@ -41,7 +42,7 @@ ignora RLS y no se auto-dispara. `execute` concedido solo a `authenticated` y `s
 | `chat_participants` | SELECT | Todos | Los de su chat + su fila | — |
 | `chat_participants` | INSERT | ✓ (cualquiera) | ✓ (solo a sí mismo) | ✓ (solo a sí mismo) |
 | `messages` | SELECT | Todos | Los de su chat | — |
-| `messages` | INSERT | — (†) | ✓ (como sí mismo) | — |
+| `messages` | INSERT | — (†) | ✓ (como sí mismo, sin bloqueo con el contraparte) | — |
 | `messages` | UPDATE (edit / soft delete) | Todos (moderación) | Propios | — |
 | `messages` | DELETE (físico) | ✓ | — | — |
 | `chat_participants` | UPDATE (`last_read_at`) | El suyo | El suyo | — |
@@ -66,9 +67,35 @@ Expresiones exactas en
 | `chat_participants_insert` | INSERT | — | `user_id = auth.uid() or is_admin()` |
 | `chat_participants_update_own` | UPDATE | `user_id = auth.uid()` | `user_id = auth.uid()` |
 | `messages_select_participant` | SELECT | `is_chat_participant(chat_id) or is_admin()` | — |
-| `messages_insert_participant` | INSERT | — | `is_chat_participant(chat_id) and sender_id = auth.uid()` |
+| `messages_insert_participant` | INSERT | — | `is_chat_participant(chat_id) and sender_id = auth.uid()` **and** sin bloqueo con el contraparte (‡) |
 | `messages_update_own` | UPDATE | `sender_id = auth.uid() or is_admin()` | `sender_id = auth.uid() or is_admin()` |
 | `messages_no_hard_delete` | DELETE | `is_admin()` | — |
+
+> (‡) F-N07-04 (#288) endurece el `with check` de `messages_insert_participant` añadiendo
+> `and not exists (select 1 from chat_participants cp_other where cp_other.chat_id = messages.chat_id and
+> cp_other.user_id <> auth.uid() and is_blocked(auth.uid(), cp_other.user_id))`: no se envía a un
+> interlocutor bloqueado (en cualquier sentido). Detalle en §Bloqueo entre usuarios.
+
+## Bloqueo entre usuarios (F-N07-04, #288)
+
+`public.user_blocks (blocker_user_id, blocked_user_id)` modela el bloqueo 1:1: un par impide **iniciar** un
+DM nuevo y **enviar** mensajes hacia/desde el bloqueado, **sin destruir el historial** (un chat existente se
+sigue devolviendo y sus mensajes se leen). Es autoservicio (cada quien gestiona sus filas; admin cualquiera):
+
+- **RLS** (`user_blocks_select` / `_insert` / `_delete`): `blocker_user_id = auth.uid() or is_admin()`. El
+  SELECT acota a mis filas, así que el **bloqueado no ve quién le ha bloqueado**. Sin UPDATE (un bloqueo se
+  crea o se borra); `check user_blocks_no_self` impide auto-bloquearse.
+- **Helpers** `SECURITY DEFINER`: `is_blocked(a, b)` (bidireccional, ignora RLS para comprobar el par del
+  contraparte) y `direct_chat_blocked(other)` (acotada al llamante, para la UI).
+- **Enforcement**: además del `with check` de `messages_insert_participant` (‡), la RPC
+  `create_or_get_direct_chat(other)` aborta con `42501` antes de crear un chat **nuevo** si `is_blocked`.
+
+SQL canónico en
+[`20260808100000_user_blocks.sql`](../../supabase/migrations/20260808100000_user_blocks.sql); matriz de
+permisos y firma de los helpers en [ADR-002 — RBAC + RLS](../adr/0002-rbac.md). Tests en
+[`rls_user_blocks.sql`](../../supabase/tests/rls/rls_user_blocks.sql) (17 assertions) y
+[`rls_messages_block.sql`](../../supabase/tests/rls/rls_messages_block.sql) (6 assertions: corta el envío en
+ambos sentidos, historial legible, no abre un DM nuevo, re-envío tras desbloqueo).
 
 ## Tests
 
@@ -100,8 +127,6 @@ pnpm supabase:test:rls   # supabase db reset && supabase test db supabase/tests/
 
 ## Pendiente / follow-ups
 
-- **UI de chat** (etiqueta "editado" junto a `edited_at`, render de "Mensaje eliminado", RPC de creación de
-  1:1 que añade al contraparte): F-N07-03.
 - **`chat_direct_pairs`** (materializa el par 1:1 para la unicidad) tiene solo `grant select` y **RLS
   deshabilitada**, por lo que un autenticado podría listar qué pares tienen DM. Endurecerlo (activar RLS o
   revocar el `select` directo dejando el lookup a una RPC) queda fuera del alcance de F-N07-02.
@@ -112,5 +137,5 @@ pnpm supabase:test:rls   # supabase db reset && supabase test db supabase/tests/
 - Esquema de tablas: `supabase/migrations/20260731000000_chat.sql`.
 - Helpers `is_admin()` / `is_manager()`: `supabase/migrations/20260617190000_security_definer_role_helpers.sql`.
 - Matriz global de permisos: [ADR-002 — RBAC + RLS](../adr/0002-rbac.md).
-- Issues: I-F-N07-02-01 (#282) · I-F-N07-02-02 (#283) · F-N07-02 (#276) · EPIC-N07 (#274). Sustituye el
-  placeholder I-F-S00-04-04.
+- Issues: I-F-N07-02-01 (#282) · I-F-N07-02-02 (#283) · F-N07-02 (#276) · I-F-N07-04-01 (#287) ·
+  I-F-N07-04-02 (#288) · F-N07-04 (#278) · EPIC-N07 (#274). Sustituye el placeholder I-F-S00-04-04.
