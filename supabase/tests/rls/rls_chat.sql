@@ -15,7 +15,7 @@
 --   Chat B (eeee…02): manager + staff    → admin NO participa (pero es admin)
 
 begin;
-select plan(16);
+select plan(19);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -141,20 +141,35 @@ select throws_ok(
   'staff: no puede enviar mensaje con sender_id ajeno (suplantación)'
 );
 
--- ── INSERT chat_participants (self vs otro) ──────────────────────────────────
+-- ── INSERT chat_participants: solo la RPC (definer) o admin dan de alta ───────
+-- El alta directa por el cliente está cerrada (fix del self-join, #274): un usuario ya
+-- NO puede insertarse a sí mismo en un chat. El camino sancionado es la RPC.
 
--- 10. Positive: staff se añade a sí mismo a un chat nuevo
+-- 10. Negative: staff intenta AUTO-AÑADIRSE a un chat AJENO existente (A) → deny.
+--     Este era el vector: colarse en el DM de admin+manager para leer sus mensajes.
+select throws_ok(
+  $test$
+    insert into public.chat_participants (chat_id, user_id)
+    values ('eeeeeeee-0000-0000-0000-000000000001'::uuid,
+            'aaaaaaaa-0000-0000-0000-000000000003'::uuid)
+  $test$,
+  '42501', null,
+  'staff: no puede auto-añadirse a un chat ajeno (self-join cerrado)'
+);
+
+-- 11. Negative: staff tampoco puede añadirse a un chat nuevo directamente (alta por RPC).
 insert into public.chats (id) values ('eeeeeeee-0000-0000-0000-000000000003'::uuid);
-select lives_ok(
+select throws_ok(
   $test$
     insert into public.chat_participants (chat_id, user_id)
     values ('eeeeeeee-0000-0000-0000-000000000003'::uuid,
             'aaaaaaaa-0000-0000-0000-000000000003'::uuid)
   $test$,
-  'staff: puede añadirse a sí mismo como participante'
+  '42501', null,
+  'staff: no puede insertarse a sí mismo directamente (el alta la hace la RPC)'
 );
 
--- 11. Negative: staff intenta añadir a manager (user_id ajeno) → deny
+-- 12. Negative: staff intenta añadir a manager (user_id ajeno) → deny
 select throws_ok(
   $test$
     insert into public.chat_participants (chat_id, user_id)
@@ -165,9 +180,27 @@ select throws_ok(
   'staff: no puede añadir a otro usuario como participante'
 );
 
+-- ── Fuga cerrada: chat_direct_pairs no es legible por el cliente ──────────────
+
+-- 13. Negative: staff no puede leer chat_direct_pairs (revoke + RLS) → permission denied.
+select throws_ok(
+  $test$ select 1 from public.chat_direct_pairs
+         where chat_id = 'eeeeeeee-0000-0000-0000-000000000001'::uuid $test$,
+  '42501', null,
+  'staff: no puede leer chat_direct_pairs (grafo social cerrado)'
+);
+
+-- 14. Positive: la RPC sí resuelve el par existente (corre como definer, pese al lockdown).
+--     Devuelve el Chat B (manager+staff), ya materializado por el fixture.
+select is(
+  public.create_or_get_direct_chat('aaaaaaaa-0000-0000-0000-000000000002'::uuid),
+  'eeeeeeee-0000-0000-0000-000000000002'::uuid,
+  'RPC create_or_get_direct_chat: sigue resolviendo el par existente tras el fix'
+);
+
 -- ── INSERT chats (cualquier autenticado) ─────────────────────────────────────
 
--- 12. Positive: staff puede crear un contenedor chats
+-- 15. Positive: staff puede crear un contenedor chats
 select lives_ok(
   $test$ insert into public.chats (id)
          values ('eeeeeeee-0000-0000-0000-000000000004'::uuid) $test$,
@@ -176,7 +209,7 @@ select lives_ok(
 
 -- ── Admin: moderación (SELECT en cualquier chat aunque no participe) ──────────
 
--- 13. Positive: admin ve mensajes de B (no participa) vía is_admin()
+-- 16. Positive: admin ve mensajes de B (no participa) vía is_admin()
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000001'::uuid);
 select results_eq(
   $test$ select count(*)::int from public.messages
@@ -185,7 +218,7 @@ select results_eq(
   'admin: ve mensajes de cualquier chat aunque no participe'
 );
 
--- 14. Positive: admin ve el chat B aunque no participe
+-- 17. Positive: admin ve el chat B aunque no participe
 select results_eq(
   $test$ select count(*)::int from public.chats
          where id = 'eeeeeeee-0000-0000-0000-000000000002'::uuid $test$,
@@ -195,14 +228,14 @@ select results_eq(
 
 -- ── Helper is_chat_participant ───────────────────────────────────────────────
 
--- 15. Positive: helper true para participante
+-- 18. Positive: helper true para participante
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid);
 select ok(
   public.is_chat_participant('eeeeeeee-0000-0000-0000-000000000002'::uuid),
   'is_chat_participant: true para un participante'
 );
 
--- 16. Negative: helper false para no participante
+-- 19. Negative: helper false para no participante
 select ok(
   not public.is_chat_participant('eeeeeeee-0000-0000-0000-000000000001'::uuid),
   'is_chat_participant: false para un no participante'

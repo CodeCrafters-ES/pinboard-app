@@ -40,7 +40,7 @@ ignora RLS y no se auto-dispara. `execute` concedido solo a `authenticated` y `s
 | `chats` | SELECT | Todos | Su chat | — |
 | `chats` | INSERT | ✓ | ✓ (cualquier autenticado) | ✓ (cualquier autenticado) |
 | `chat_participants` | SELECT | Todos | Los de su chat + su fila | — |
-| `chat_participants` | INSERT | ✓ (cualquiera) | ✓ (solo a sí mismo) | ✓ (solo a sí mismo) |
+| `chat_participants` | INSERT | ✓ (cualquiera) | — (solo vía RPC) (§) | — (solo vía RPC) (§) |
 | `messages` | SELECT | Todos | Los de su chat | — |
 | `messages` | INSERT | — (†) | ✓ (como sí mismo, sin bloqueo con el contraparte) | — |
 | `messages` | UPDATE (edit / soft delete) | Todos (moderación) | Propios | — |
@@ -50,6 +50,12 @@ ignora RLS y no se auto-dispara. `execute` concedido solo a `authenticated` y `s
 > (†) La INSERT de `messages` exige `is_chat_participant(chat_id) and sender_id = auth.uid()`: un admin que no
 > participe **no** puede insertar en nombre de otros. Admin solo tiene alcance ampliado de **lectura** y
 > **moderación** (UPDATE/DELETE), no de suplantación en el envío.
+>
+> (§) **Fix de seguridad (#274, `20260811000000`):** el alta directa de participantes por el cliente está
+> **cerrada** — un usuario ya no puede insertarse a sí mismo en un chat. Antes (`user_id = auth.uid()`) podía
+> auto-añadirse a un chat ajeno cuyo `chat_id` hubiera descubierto y leer sus mensajes. El alta la hace la RPC
+> `create_or_get_direct_chat` (`SECURITY DEFINER`, da de alta a ambos como owner). Solo `admin` puede insertar
+> directamente.
 
 ## Policies (SQL canónico)
 
@@ -64,7 +70,7 @@ Expresiones exactas en
 | `chats_select_participant` | SELECT | `is_chat_participant(id) or is_admin()` | — |
 | `chats_insert_authenticated` | INSERT | — | `true` |
 | `chat_participants_select` | SELECT | `user_id = auth.uid() or is_chat_participant(chat_id) or is_admin()` | — |
-| `chat_participants_insert` | INSERT | — | `user_id = auth.uid() or is_admin()` |
+| `chat_participants_insert` | INSERT | — | `is_admin()` (§ — alta directa cerrada, #274) |
 | `chat_participants_update_own` | UPDATE | `user_id = auth.uid()` | `user_id = auth.uid()` |
 | `messages_select_participant` | SELECT | `is_chat_participant(chat_id) or is_admin()` | — |
 | `messages_insert_participant` | INSERT | — | `is_chat_participant(chat_id) and sender_id = auth.uid()` **and** sin bloqueo con el contraparte (‡) |
@@ -125,11 +131,16 @@ Ejecución local:
 pnpm supabase:test:rls   # supabase db reset && supabase test db supabase/tests/rls/
 ```
 
-## Pendiente / follow-ups
+## `chat_direct_pairs` (unicidad del par 1:1)
 
-- **`chat_direct_pairs`** (materializa el par 1:1 para la unicidad) tiene solo `grant select` y **RLS
-  deshabilitada**, por lo que un autenticado podría listar qué pares tienen DM. Endurecerlo (activar RLS o
-  revocar el `select` directo dejando el lookup a una RPC) queda fuera del alcance de F-N07-02.
+Tabla derivada que materializa el par ordenado `(user_a < user_b)` de un chat directo para garantizar que
+no haya dos DMs entre el mismo par. La puebla por trigger (`SECURITY DEFINER`) el alta del segundo
+participante.
+
+**Cerrada a lectura directa (fix #274, `20260811000000`):** filtraba el grafo social (qué pares tienen DM) y
+los `chat_id`, que combinados con un self-join abrían mensajes ajenos. Se **revocó** el `grant select` a
+`authenticated` y se **habilitó RLS** (deny por defecto). El cliente no la consulta; la RPC
+`create_or_get_direct_chat` resuelve el par internamente como definer.
 
 ## Referencias
 
