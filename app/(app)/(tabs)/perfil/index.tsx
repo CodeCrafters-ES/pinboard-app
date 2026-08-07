@@ -78,6 +78,11 @@ export default function ProfileScreen() {
             variant="secondary"
             onPress={() => router.push('/(app)/(tabs)/perfil/edit')}
           />
+          <Button
+            label="Ranking"
+            variant="secondary"
+            onPress={() => router.push('/(app)/ranking')}
+          />
           {session?.role === 'manager' ? (
             <>
               <Button
