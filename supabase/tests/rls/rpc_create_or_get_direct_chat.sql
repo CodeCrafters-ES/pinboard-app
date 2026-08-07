@@ -40,6 +40,10 @@ select is(
   'da de alta a los dos participantes (admin + manager)'
 );
 
+-- El par se materializa en chat_direct_pairs; se comprueba como superuser porque la
+-- tabla dejó de ser legible por `authenticated` (fix de seguridad #274: se cerró para no
+-- filtrar el grafo social de DMs). La RPC la sigue leyendo como definer.
+reset role;
 select is(
   (select count(*)::int from public.chat_direct_pairs
    where chat_id = (select id from _chat)
@@ -48,6 +52,7 @@ select is(
   1,
   'materializa el par ordenado en chat_direct_pairs'
 );
+select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000001'::uuid);
 
 -- Segunda llamada con el mismo par → mismo chat (idempotente).
 select is(
