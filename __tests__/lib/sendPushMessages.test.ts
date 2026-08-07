@@ -1,5 +1,6 @@
 import {
   BODY_MAX_CHARS,
+  chatMessage,
   eventMessage,
   formatEventDate,
   postMessage,
@@ -97,5 +98,35 @@ describe('eventMessage', () => {
     const message = eventMessage({ ...record, event_start_at: 'nope' });
 
     expect(message.body).toBe('Briefing de sala');
+  });
+});
+
+describe('chatMessage', () => {
+  const record = { chat_id: '33333333-3333-3333-3333-333333333333', content: 'Nos vemos a las 8' };
+
+  it('usa el nombre del remitente y el payload de chat de ADR-003', () => {
+    expect(chatMessage(record, 'Marta Ferrer')).toEqual({
+      title: 'Marta Ferrer',
+      body: 'Nos vemos a las 8',
+      data: { type: 'chat', id: record.chat_id },
+      channelId: 'chat',
+      priority: 'high',
+    });
+  });
+
+  it('cae en un título genérico si no hay nombre de remitente', () => {
+    expect(chatMessage(record, null).title).toBe('Nuevo mensaje');
+    expect(chatMessage(record, '   ').title).toBe('Nuevo mensaje');
+  });
+
+  it('recorta el cuerpo a 80 caracteres incluyendo la elipsis', () => {
+    const message = chatMessage({ ...record, content: 'a'.repeat(200) }, 'Marta');
+
+    expect(message.body).toHaveLength(80);
+    expect(message.body.endsWith('…')).toBe(true);
+  });
+
+  it('el deep-link apunta al chat, no al mensaje', () => {
+    expect(chatMessage(record, 'Marta').data).toEqual({ type: 'chat', id: record.chat_id });
   });
 });

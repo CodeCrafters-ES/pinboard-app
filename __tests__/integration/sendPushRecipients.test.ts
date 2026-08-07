@@ -13,7 +13,9 @@ import { createClient } from '@supabase/supabase-js';
 
 import {
   authorUserId,
+  chatRecipientTokens,
   recipientTokens,
+  senderDisplayName,
   type PushDb,
 } from '../../supabase/functions/send-push/recipients';
 import type { Database } from '@/lib/database.types';
@@ -33,6 +35,10 @@ const MANAGER = { email: 'manager@nun-ibiza.dev', password: 'password123' };
 const STAFF = { email: 'staff@nun-ibiza.dev', password: 'password123' };
 
 const RUN_MARKER = `send_push_it_${Date.now()}`;
+
+// UUID con formato válido que no corresponde a ningún chat: sirve para el caso "sin
+// participantes" sin tener que crear (ni limpiar) un chat de un solo miembro.
+const NONEXISTENT_CHAT_ID = '00000000-0000-4000-8000-000000000000';
 
 const managerClient = createClient<Database>(LOCAL_URL, LOCAL_ANON_KEY);
 const staffClient = createClient<Database>(LOCAL_URL, LOCAL_ANON_KEY);
@@ -143,6 +149,54 @@ describe('send-push recipients (integration)', () => {
         user_id: expect.any(String),
         platform: expect.stringMatching(/^(ios|android|web)$/),
       });
+    });
+  });
+
+  // Destinatarios acotados a un chat 1:1 (F-N07-05). A diferencia del broadcast de
+  // posts/eventos, aquí solo se notifica a los participantes del chat menos el remitente.
+  describe('chat recipients', () => {
+    let chatId: string;
+
+    beforeAll(async () => {
+      // El chat se crea con la RPC (SECURITY DEFINER), que da de alta a ambos
+      // participantes. No se usa el adminClient (service_role) para insertar en `chats`:
+      // esa tabla se concede solo a `authenticated`, y send-push nunca escribe ahí — solo
+      // LEE chat_participants (grant de 20260810000000). La RPC es idempotente por par.
+      const { data, error } = await managerClient.rpc('create_or_get_direct_chat', {
+        other_user: staffUserId,
+      });
+      if (error) throw error;
+      chatId = data as string;
+    });
+
+    it('excluye al remitente y devuelve los tokens del otro participante', async () => {
+      const tokens = await chatRecipientTokens(db, chatId, managerUserId);
+
+      expect(tokens.some((t) => t.user_id === managerUserId)).toBe(false);
+      const staffMarked = tokens.filter(
+        (t) => t.user_id === staffUserId && t.token.includes(RUN_MARKER),
+      );
+      expect(staffMarked).toHaveLength(2);
+    });
+
+    it('resuelve al otro sentido: el remitente staff no recibe, el manager sí', async () => {
+      const tokens = await chatRecipientTokens(db, chatId, staffUserId);
+
+      expect(tokens.some((t) => t.user_id === staffUserId)).toBe(false);
+      expect(tokens.map((t) => t.token)).toContain(`ExponentPushToken[${RUN_MARKER}-manager]`);
+    });
+
+    it('sin participantes distintos del remitente no hay destinatarios', async () => {
+      // Un chat inexistente no tiene participantes: no hay a quién notificar.
+      const tokens = await chatRecipientTokens(db, NONEXISTENT_CHAT_ID, managerUserId);
+      expect(tokens).toEqual([]);
+    });
+
+    it('senderDisplayName resuelve el nombre público del remitente (grant service_role)', async () => {
+      const name = await senderDisplayName(db, managerUserId);
+
+      expect(typeof name).toBe('string');
+      expect((name ?? '').length).toBeGreaterThan(0);
     });
   });
 });
