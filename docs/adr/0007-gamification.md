@@ -89,6 +89,25 @@ Detalles que fija la implementación:
 
 ---
 
+## Implementación (F-N08-02)
+
+| Migración | Contenido | Issue |
+|---|---|---|
+| `20260809000000_leaderboard_fn_n08_02_01.sql` | Función `leaderboard(period_start, period_end, limit_n)` `SECURITY DEFINER` + grants | I-F-N08-02-01 |
+
+Detalles que fija la implementación:
+
+- **Rangos half-open `[start, end)`.** «Lunes 00:00 → domingo 23:59» se expresa pasando el lunes siguiente como fin exclusivo: un fin inclusivo a las 23:59:59 perdería el último segundo del domingo.
+- **La zona horaria se resuelve en el cliente.** `lib/gamification/dateRange.ts` calcula las ventanas contra `Europe/Madrid` con `Intl.DateTimeFormat` (offset por iteración, sin tabla de DST ni dependencias) y pasa instantes UTC. La RPC no convierte nada. A diferencia de `lib/eventRange.ts`, **no** se usa la hora del dispositivo: el AC fija Madrid, así que quien abra la app de viaje ve la misma semana que sus compañeros.
+- **`rank()` y no `row_number()`.** Un empate exacto (mismos puntos y mismo primer `awarded_at`) comparte puesto en vez de romperse por orden físico. El desempate normal es `min(awarded_at)` ascendente.
+- **`limit_n` acotado en servidor** a `[1, 100]`: llega del cliente y sin tope permitiría pedir la tabla entera.
+- **`left join` a `profiles_public`.** Un usuario con puntos pero sin fila de perfil no desaparece del ranking ni pierde su propia posición; cae a `'Usuario'`.
+- **Fila propia fuera del top.** La RPC añade una fila extra con `is_self = true` cuando el puesto supera `limit_n`. El cliente la separa con `splitSelfBelowTop(entries, limit)` aplicando el mismo criterio (`rank > limit`), no la distancia entre puestos: con el top a 20 y el usuario en el 21 la diferencia es de un solo puesto y sería indistinguible de una fila normal.
+- **Superficie expuesta.** Solo `full_name` y `avatar_url` de `profiles_public`; nunca emails. `EXECUTE` concedido a `authenticated` y revocado a `public`/`anon`. Sigue siendo el **único** camino de lectura del agregado: `user_points` solo deja ver la fila propia.
+- **Tests.** `supabase/tests/rls/rpc_leaderboard.sql` (orden, desempate, ventana half-open, fila propia dentro y fuera del top, firma sin email, denegación a `anon`) y, en Jest, los rangos de Madrid, el hook `useLeaderboard` y `RankingScreen`.
+
+---
+
 ## Consecuencias
 
 **Positivas:** puntos deterministas, idempotentes y auditables; leaderboard barato vía RPC sin exponer datos personales; claves de usuario homogéneas (`auth.uid()`), sin el desajuste `profiles.id`.
