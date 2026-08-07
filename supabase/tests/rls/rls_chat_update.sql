@@ -10,7 +10,7 @@
 -- Fixture: un chat con manager + staff; un mensaje de cada uno.
 
 begin;
-select plan(10);
+select plan(12);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -39,6 +39,14 @@ insert into public.messages (id, chat_id, sender_id, content) values
    'abababab-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'de manager'),
   ('dcdcdcdc-0000-0000-0000-000000000002'::uuid,
    'abababab-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-0000-0000-0000-000000000003'::uuid, 'de staff');
+
+-- Segundo chat AJENO a staff (admin + manager), para probar que staff no puede
+-- migrar su propia fila/mensaje hacia él vía UPDATE (self-join / inyección).
+insert into public.chats (id) values ('abababab-0000-0000-0000-000000000002'::uuid);
+insert into public.chat_participants (chat_id, user_id)
+  values ('abababab-0000-0000-0000-000000000002'::uuid, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid); -- admin
+insert into public.chat_participants (chat_id, user_id)
+  values ('abababab-0000-0000-0000-000000000002'::uuid, 'aaaaaaaa-0000-0000-0000-000000000002'::uuid); -- manager
 
 -- ── Sender edita / soft-borra su propio mensaje ──────────────────────────────
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid); -- staff
@@ -148,6 +156,33 @@ select lives_ok(
     where id = 'dcdcdcdc-0000-0000-0000-000000000001'::uuid
   $test$,
   'admin: puede borrar físicamente un mensaje'
+);
+
+-- ── Identidad inmutable en UPDATE: cierre del self-join / inyección por UPDATE ─
+-- (20260812000000_freeze_chat_update_identity.sql). Sin esto, las policies own
+-- dejaban mutar chat_id y reabrir el vector que 20260811000000 cerró por INSERT.
+select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000003'::uuid); -- staff
+
+-- 11. Negative: staff no puede migrar su propia fila de participante a un chat ajeno
+--     (self-join por UPDATE → leería el historial ajeno). El trigger lo rechaza.
+select throws_ok(
+  $test$
+    update public.chat_participants set chat_id = 'abababab-0000-0000-0000-000000000002'::uuid
+    where chat_id = 'abababab-0000-0000-0000-000000000001'::uuid
+      and user_id = 'aaaaaaaa-0000-0000-0000-000000000003'::uuid
+  $test$,
+  '42501', null,
+  'staff: no puede auto-añadirse a un chat ajeno mutando chat_id (UPDATE)'
+);
+
+-- 12. Negative: staff no puede mover su propio mensaje a un chat ajeno (inyección)
+select throws_ok(
+  $test$
+    update public.messages set chat_id = 'abababab-0000-0000-0000-000000000002'::uuid
+    where id = 'dcdcdcdc-0000-0000-0000-000000000002'::uuid
+  $test$,
+  '42501', null,
+  'staff: no puede inyectar su mensaje en un chat ajeno mutando chat_id (UPDATE)'
 );
 
 select * from finish();
