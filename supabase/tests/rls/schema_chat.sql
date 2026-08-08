@@ -10,7 +10,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(22);
+select plan(23);
 
 -- ── Structure ──────────────────────────────────────────────────────────────
 select has_table('public', 'chats', 'chats table exists');
@@ -148,6 +148,15 @@ select is(
   (select edited_at from public.messages where id = 'dddddddd-0000-0000-0000-000000000002'::uuid),
   null,
   'soft delete (deleted_at) no setea edited_at'
+);
+
+-- ── Trigger clear content on soft delete (fix #330) ──────────────────────────
+-- El soft delete blanquea el content en la tabla base (no solo en la vista); el CHECK
+-- relajado admite '' cuando deleted_at is not null. refs: 20260813000000.
+select is(
+  (select content from public.messages where id = 'dddddddd-0000-0000-0000-000000000002'::uuid),
+  '',
+  'soft delete borra el content en la tabla base (queda vacío)'
 );
 
 -- ── Cascada: borrar chat elimina sus mensajes ────────────────────────────────

@@ -207,10 +207,12 @@ export async function createOrGetDirectChat({
 }
 
 /**
- * Soft delete de un mensaje: marca `deleted_at`. No borra físicamente. La RLS
+ * Soft delete de un mensaje: marca `deleted_at`. No borra la fila. La RLS
  * (messages_update_own) solo deja borrar el propio mensaje o, si es admin, cualquiera
- * (moderación); un no autorizado no afecta filas. El content deja de exponerse a través
- * de messages_public_v en cuanto deleted_at queda seteado.
+ * (moderación); un no autorizado no afecta filas. Al setear `deleted_at`, un trigger
+ * server-side (messages_clear_content_on_soft_delete, fix #330) BORRA el `content` en la
+ * tabla base, así que el texto original no es recuperable por tabla base, REST ni Realtime;
+ * la vista messages_public_v y maskDeleted quedan como defensa en profundidad.
  */
 export async function softDeleteMessage({
   messageId,

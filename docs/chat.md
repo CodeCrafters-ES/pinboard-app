@@ -202,33 +202,29 @@ del 1:1 y un preview del último mensaje: `partner_user_id`, `partner_name`, `pa
 Componentes en `components/chat/`: `MessageBubble`, `ChatComposer`, `ChatListRow`, `TypingIndicator`,
 `ChatAvatar`. Los mensajes borrados se muestran como _"Mensaje eliminado"_ vía `displayContent`.
 
-## Soft delete (F-N07-04, `20260807000000_messages_public_v.sql`)
+## Soft delete (F-N07-04, `20260807000000_messages_public_v.sql` + `20260813000000_clear_message_content_on_soft_delete.sql`)
 
 Borrar un mensaje es un **soft delete**: `messages.deleted_at = now()` (nunca `DELETE` físico salvo admin).
 La autorización la impone la RLS `messages_update_own` (`sender_id = auth.uid() or is_admin()`): el autor borra
 el suyo y un admin modera cualquiera.
 
-**No exponer el `content` tras el borrado (Opción B).** El cliente lee los mensajes por la vista
-`messages_public_v` (`security_invoker = true`), que enmascara el content:
+**El `content` se borra en la BD al soft-deletar (fix #330).** Un trigger `BEFORE UPDATE`
+(`messages_clear_content_on_soft_delete`) pone `content = ''` en la transición a borrado, así que el texto
+original **desaparece de la tabla base**, de REST (`/rest/v1/messages`) y del **WAL** — por tanto también del
+payload de Realtime. El `CHECK` de longitud se relajó para admitir `''` solo cuando `deleted_at is not null`
+(el INSERT de un mensaje vacío sigue fallando). Ni el autor ni el otro participante pueden recuperar el texto.
 
-```sql
-case when deleted_at is null then content else null end as content
-```
-
-Como es `security_invoker`, la vista **hereda la RLS** de `messages` (solo participantes / admin): no amplía
-visibilidad, solo oculta la columna. Así el content original no es recuperable desde el cliente.
+**Defensa en profundidad.** El cliente además lee los mensajes por la vista `messages_public_v`
+(`security_invoker = true`), que enmascara el content (`case when deleted_at is null then content else null`),
+y `useChat` aplica `maskDeleted` sobre los eventos de Realtime. Con el trigger, el `content` ya no viaja, pero
+ambas capas se mantienen como red de seguridad.
 
 **Flujo:**
-- `softDeleteMessage(messageId)` (`lib/chat.ts`) → `update({ deleted_at }).eq('id', …)`.
+- `softDeleteMessage(messageId)` (`lib/chat.ts`) → `update({ deleted_at }).eq('id', …)` (el trigger blanquea el content).
 - `useChat().softDelete(id)`: optimista (marca `deleted_at` + vacía `content` en local; revierte si falla).
 - `MessageBubble`: **long-press** en un mensaje propio (o cualquiera si eres admin) → confirmación
   (`Alert`) → borra. Muestra "Borrar" o "Borrar (moderación)".
 - El `UPDATE` se propaga al otro participante vía Realtime (`useChat` reconcilia con `upsertReal`).
-
-**Límite conocido (Realtime):** el stream `postgres_changes` va sobre la **tabla** `messages`, así que el
-payload del `UPDATE` de un borrado trae el `content` original. `useChat` lo **enmascara en cliente**
-(`maskDeleted`) para que no entre al estado; una garantía a nivel websocket (p. ej. filtrado de columnas o
-un canal privado) queda fuera del MVP.
 
 ## Benchmark (validación de umbrales)
 
