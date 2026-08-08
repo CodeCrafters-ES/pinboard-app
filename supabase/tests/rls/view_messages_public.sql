@@ -6,6 +6,10 @@
 --   - sender borra el suyo → la vista enmascara su content (null), conservando deleted_at.
 --   - admin modera (soft delete) un mensaje ajeno → content también enmascarado.
 --   - un no participante no ve filas del chat (la vista hereda la RLS de messages).
+--   - fix #330: el soft delete BORRA el content en la TABLA BASE (trigger
+--     messages_clear_content_on_soft_delete), así que ni el autor ni el otro participante
+--     lo recuperan por messages (no solo por la vista). Migración
+--     20260813000000_clear_message_content_on_soft_delete.sql.
 --
 -- Seed UUIDs (supabase/seed.sql) — ids de auth.users:
 --   admin:   aaaaaaaa-0000-0000-0000-000000000001
@@ -13,7 +17,7 @@
 --   staff:   aaaaaaaa-0000-0000-0000-000000000003
 
 begin;
-select plan(8);
+select plan(12);
 
 create or replace function pg_temp.set_session(uid uuid)
 returns void language plpgsql as $$
@@ -82,6 +86,14 @@ select results_eq(
   'la vista enmascara el content del borrado por su autor (deleted_at se conserva)'
 );
 
+-- fix #330: el content se borra en la TABLA BASE, no solo en la vista.
+select results_eq(
+  $$ select content from public.messages
+     where id = 'b0000000-0000-0000-0000-00000000000b'::uuid $$,
+  $$ values (''::text) $$,
+  'fix #330: el autor no recupera el content del borrado por la tabla base (queda vacío)'
+);
+
 -- ── admin: modera (soft delete) un mensaje ajeno → content enmascarado ────────
 select pg_temp.set_session('aaaaaaaa-0000-0000-0000-000000000001'::uuid);
 
@@ -96,6 +108,30 @@ select results_eq(
      where id = 'b0000000-0000-0000-0000-00000000000c'::uuid $$,
   $$ values (null::text) $$,
   'la vista enmascara el content del mensaje moderado por admin'
+);
+
+-- fix #330: el OTRO participante (admin) tampoco recupera por la tabla base el content
+-- del mensaje que borró manager; y el moderado por admin también queda vacío en base.
+select results_eq(
+  $$ select content from public.messages
+     where id = 'b0000000-0000-0000-0000-00000000000b'::uuid $$,
+  $$ values (''::text) $$,
+  'fix #330: el otro participante (admin) no recupera por la tabla base el borrado de manager'
+);
+
+select results_eq(
+  $$ select content from public.messages
+     where id = 'b0000000-0000-0000-0000-00000000000c'::uuid $$,
+  $$ values (''::text) $$,
+  'fix #330: el content del mensaje moderado por admin queda vacío en la tabla base'
+);
+
+-- Un mensaje activo conserva su content en la tabla base (no se blanquea de más).
+select results_eq(
+  $$ select content from public.messages
+     where id = 'a0000000-0000-0000-0000-00000000000a'::uuid $$,
+  $$ values ('activo'::text) $$,
+  'fix #330: un mensaje activo conserva su content en la tabla base'
 );
 
 -- ── staff (no participante): la vista no le devuelve filas del chat ───────────

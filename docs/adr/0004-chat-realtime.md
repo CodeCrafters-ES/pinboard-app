@@ -447,6 +447,28 @@ create trigger messages_touch_chat
 - Sin round-trip extra en el envío optimista; compatible con la idempotencia offline (`INSERT ... ON CONFLICT DO NOTHING` no inserta fila → el trigger no dispara).
 - Mismo patrón que el trigger `set_updated_at` ya establecido en el repo (timestamp derivado mantenido server-side).
 
+## Addendum — Endurecimiento del soft delete ([#330](https://github.com/CodeCrafters-ES/pinboard-app/issues/330))
+
+**Fecha:** 2026-08-08
+
+El diseño original enmascaraba el `content` de los mensajes borrados solo en la vista `messages_public_v` y en el cliente (`maskDeleted`). La auditoría de la EPIC detectó que eso no cumple el DoD (*"el content original no es accesible al cliente"*): la policy `messages_select_participant` permite `SELECT` sobre la **tabla base** `messages` y `authenticated` tiene `GRANT SELECT`, así que cualquier participante del DM podía recuperar el texto de un borrado por la tabla base o por REST (`/rest/v1/messages`), y el payload de Realtime `postgres_changes` también lo transportaba.
+
+**Decisión:** borrar físicamente el `content` en el soft delete con un trigger `BEFORE UPDATE`:
+
+```sql
+create trigger messages_clear_content_on_soft_delete
+  before update on public.messages
+  for each row execute function public.messages_clear_content_on_soft_delete();
+-- pone new.content = '' en la transición deleted_at null → not null
+```
+
+- Al reescribir `NEW.content` antes de persistir, el texto desaparece de la tabla base, de REST y del WAL (y por tanto del payload de Realtime). La fila y sus metadatos (`deleted_at`, `sender_id`, `created_at`) se conservan: sigue siendo *soft* delete.
+- El `CHECK` de longitud se relaja para admitir `''` solo cuando `deleted_at is not null`; el INSERT de un mensaje vacío sigue rechazándose (`23514`).
+- No interfiere con `messages_set_edited_at` (`BEFORE UPDATE OF content`, no dispara en un `update ... set deleted_at`) ni con `messages_freeze_identity`.
+- La vista `messages_public_v` y `maskDeleted` en el cliente se mantienen como **defensa en profundidad**.
+
+Migración: `20260813000000_clear_message_content_on_soft_delete.sql`. Reemplaza el "límite conocido (Realtime)" que documentaba el ADR/`docs/chat.md`.
+
 ---
 
 ## Referencias

@@ -48,9 +48,10 @@ function sortCap(list: ChatMessage[]): ChatMessage[] {
     : sorted;
 }
 
-// El stream postgres_changes va sobre la tabla messages, así que el content de un
-// borrado llega en claro; lo enmascaramos aquí para que no entre al estado (espeja la
-// vista messages_public_v). Ver docs/chat.md.
+// Desde el fix #330 el content de un borrado se vacía server-side (trigger
+// messages_clear_content_on_soft_delete), así que el payload de postgres_changes ya no
+// trae el texto. Mantenemos el enmascarado como defensa en profundidad (espeja la vista
+// messages_public_v y cubre filas cacheadas antes del borrado). Ver docs/chat.md.
 function maskDeleted(row: Message): Message {
   return row.deleted_at ? { ...row, content: '' } : row;
 }
