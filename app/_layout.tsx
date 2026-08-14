@@ -20,7 +20,7 @@ export default function RootLayout() {
   return (
     <SessionProvider>
       <PushNavigation />
-      <Stack />
+      <Stack screenOptions={{ headerShown: false }} />
     </SessionProvider>
   );
 }
