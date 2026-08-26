@@ -18,6 +18,11 @@ jest.mock('expo-image-manipulator', () => ({
   SaveFormat: { WEBP: 'webp' },
 }));
 
+// decode(base64) → ArrayBuffer; devolvemos un buffer determinista para asertar la subida.
+jest.mock('base64-arraybuffer', () => ({
+  decode: (b64: string) => new ArrayBuffer(b64.length),
+}));
+
 jest.mock('@/lib/supabase', () => ({
   supabase: {
     storage: {
@@ -28,10 +33,6 @@ jest.mock('@/lib/supabase', () => ({
     },
   },
 }));
-
-global.fetch = jest.fn().mockResolvedValue({
-  blob: jest.fn().mockResolvedValue(new Blob(['img'], { type: 'image/webp' })),
-}) as jest.Mock;
 
 const USER_ID = 'user-abc-123';
 
@@ -60,7 +61,7 @@ describe('useAvatarUpload', () => {
       canceled: false,
       assets: [{ uri: 'file://photo.jpg' }],
     });
-    mockManipulateAsync.mockResolvedValueOnce({ uri: 'file://resized.webp' });
+    mockManipulateAsync.mockResolvedValueOnce({ uri: 'file://resized.webp', base64: 'AAAA' });
     mockStorageUpload.mockResolvedValueOnce({ error: null });
     mockGetPublicUrl.mockReturnValueOnce({
       data: { publicUrl: 'https://cdn.example.com/avatars/user-abc-123/avatar.webp' },
@@ -76,11 +77,11 @@ describe('useAvatarUpload', () => {
     expect(mockManipulateAsync).toHaveBeenCalledWith(
       'file://photo.jpg',
       [{ resize: { width: 1024 } }],
-      { compress: 0.8, format: 'webp' },
+      { compress: 0.8, format: 'webp', base64: true },
     );
     expect(mockStorageUpload).toHaveBeenCalledWith(
       `${USER_ID}/avatar.webp`,
-      expect.any(Blob),
+      expect.any(ArrayBuffer),
       { contentType: 'image/webp', upsert: true },
     );
     expect((returned as { publicUrl: string }).publicUrl).toMatch(
@@ -93,7 +94,7 @@ describe('useAvatarUpload', () => {
       canceled: false,
       assets: [{ uri: 'file://photo.jpg' }],
     });
-    mockManipulateAsync.mockResolvedValueOnce({ uri: 'file://resized.webp' });
+    mockManipulateAsync.mockResolvedValueOnce({ uri: 'file://resized.webp', base64: 'AAAA' });
     mockStorageUpload.mockResolvedValueOnce({ error: new Error('Bucket not found') });
 
     const { result } = renderHook(() => useAvatarUpload(USER_ID));
