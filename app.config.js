@@ -22,6 +22,9 @@ export default {
     },
     android: {
       package: 'com.nunibiza.pinboard',
+      // FCM: en EAS se resuelve desde el secret file GOOGLE_SERVICES_JSON;
+      // en builds locales usa el archivo de la carpeta (gitignored).
+      googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#FFF8F4',
