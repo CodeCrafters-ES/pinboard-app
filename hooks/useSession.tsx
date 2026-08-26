@@ -35,30 +35,43 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const userIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    let active = true;
+
+    async function resolveSession(userId: string) {
+      userIdRef.current = userId;
+      const resolved = await fetchProfile(userId);
+      if (!active) return;
+      setSession(resolved?.sessionInfo ?? null);
+      setProfile(resolved?.profileData ?? null);
+      setStatus(resolved ? 'authenticated' : 'unauthenticated');
+    }
+
     supabase.auth
       .getSession()
-      .then(async ({ data: { session: s } }) => {
-        if (s) {
-          userIdRef.current = s.user.id;
-          const resolved = await fetchProfile(s.user.id);
-          setSession(resolved?.sessionInfo ?? null);
-          setProfile(resolved?.profileData ?? null);
-          setStatus(resolved ? 'authenticated' : 'unauthenticated');
-        } else {
-          setStatus('unauthenticated');
-        }
+      .then(({ data: { session: s } }) => {
+        if (!active) return;
+        // getSession() ya soltó el lock de auth al resolver, así que consultar el
+        // perfil aquí es seguro.
+        if (s) void resolveSession(s.user.id);
+        else setStatus('unauthenticated');
       })
-      .catch(() => setStatus('unauthenticated'));
+      .catch(() => {
+        if (active) setStatus('unauthenticated');
+      });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    } = supabase.auth.onAuthStateChange((_event, s) => {
+      // supabase-js invoca este callback con su lock de auth tomado. Llamar aquí a
+      // otra función de Supabase (fetchProfile → supabase.from) intenta re-adquirir
+      // ese lock y provoca un deadlock: el perfil nunca llega, `status` se queda en
+      // 'unauthenticated' y el login en caliente no redirige (solo "entra a la
+      // segunda" al reabrir, cuando resuelve por la rama getSession()). Diferir con
+      // setTimeout suelta el lock antes de tocar Postgres.
       if (s) {
-        userIdRef.current = s.user.id;
-        const resolved = await fetchProfile(s.user.id);
-        setSession(resolved?.sessionInfo ?? null);
-        setProfile(resolved?.profileData ?? null);
-        setStatus(resolved ? 'authenticated' : 'unauthenticated');
+        setTimeout(() => {
+          if (active) void resolveSession(s.user.id);
+        }, 0);
       } else {
         userIdRef.current = null;
         setSession(null);
@@ -67,7 +80,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // El registro del push token cuelga del userId, no del evento SIGNED_IN: al abrir

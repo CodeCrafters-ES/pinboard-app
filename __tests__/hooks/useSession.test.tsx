@@ -109,6 +109,35 @@ describe('useSession', () => {
     expect(result.current.profile).toEqual(STAFF_PROFILE);
   });
 
+  // Regresión: al hacer login en caliente (app ya arrancada, sin sesión previa) el
+  // único camino a 'authenticated' es el callback SIGNED_IN. Si el perfil se resolviera
+  // dentro del callback provocaría un deadlock del lock de auth de supabase-js y el
+  // estado se quedaría en 'unauthenticated' (el usuario "entra a la segunda").
+  it('resolves to authenticated on a hot SIGNED_IN without a prior getSession session', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: null } });
+    mockFrom.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({ data: STAFF_PROFILE }),
+    });
+    let capturedCallback: ((event: string, session: unknown) => void) | null = null;
+    mockOnAuthStateChange.mockImplementation((cb: (event: string, session: unknown) => void) => {
+      capturedCallback = cb;
+      return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
+    });
+
+    const { result } = await renderHook(() => useSession(), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('unauthenticated'));
+
+    await act(async () => {
+      capturedCallback?.('SIGNED_IN', { user: { id: 'user-1' } });
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+    expect(result.current.session).toEqual({ userId: 'user-1', role: 'staff' });
+    expect(result.current.profile).toEqual(STAFF_PROFILE);
+  });
+
   it('updates to unauthenticated when onAuthStateChange fires with null', async () => {
     setupWithSession();
     let capturedCallback: ((event: string, session: unknown) => void) | null = null;
