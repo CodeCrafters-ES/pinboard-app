@@ -1,4 +1,5 @@
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { decode } from 'base64-arraybuffer';
 
 import { supabase } from '@/lib/supabase';
 
@@ -6,7 +7,7 @@ export type ImageTarget = 'post' | 'event' | 'avatar';
 export type ImageBucket = 'avatars' | 'post-images' | 'event-images';
 
 export type PreparedImage = {
-  blob: Blob;
+  bytes: ArrayBuffer;
   mime: 'image/webp';
   width: number;
   height: number;
@@ -86,16 +87,19 @@ export async function prepareImageForUpload(
   const manipulated = await manipulateAsync(input.uri, [{ resize }], {
     compress: quality / 100,
     format: SaveFormat.WEBP,
+    base64: true,
   });
 
-  const blob = await fetchBlob(manipulated.uri);
+  // En React Native, un Blob de fetch(file://) se sube a Storage con 0 bytes; el
+  // manipulador ya devuelve base64, así que subimos su ArrayBuffer decodificado.
+  const bytes = decode(manipulated.base64!);
 
   return {
-    blob,
+    bytes,
     mime: 'image/webp',
     width: manipulated.width,
     height: manipulated.height,
-    sizeKB: Math.round(blob.size / 1024),
+    sizeKB: Math.round(bytes.byteLength / 1024),
   };
 }
 
@@ -110,7 +114,7 @@ export async function uploadImage(
 ): Promise<UploadResult> {
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(path, prepared.blob, { contentType: 'image/webp', upsert: true });
+    .upload(path, prepared.bytes, { contentType: 'image/webp', upsert: true });
 
   if (error) throw error;
 
