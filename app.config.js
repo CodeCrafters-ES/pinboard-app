@@ -16,6 +16,7 @@ export default {
       supportsTablet: true,
       bundleIdentifier: 'com.nunibiza.pinboard',
       infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
         NSUserNotificationsUsageDescription:
           'Nun Ibiza envía notificaciones para avisarte de nuevos posts, eventos y mensajes del equipo.',
       },
