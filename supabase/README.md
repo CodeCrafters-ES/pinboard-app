@@ -100,11 +100,13 @@ Todas las tablas del dominio tienen `ENABLE ROW LEVEL SECURITY`. Resumen de poli
 | `post_reactions` | any auth | own | own | own / admin |
 | `post_ratings` | any auth | own | own | — (no policy) |
 | `post_comments` | any auth | own | own | own / admin |
-| `events` | any auth | manager / admin | manager / admin | manager / admin |
+| `events` | any auth | manager / admin | own / admin | own / admin |
 | `engagement_sessions` | own / manager+admin | — | — | — |
 | `push_tokens` | own | own | own | own |
 
 > **`engagement_sessions`**: toda escritura va exclusivamente a través de la Edge Function `track-engagement` con `service_role`, que bypasea RLS.
+
+> **`push_tokens`**: *own* para todos los roles (ni siquiera admin ve tokens ajenos). La Edge Function `send-push` los lee y purga con `service_role`. Detalle en [`docs/rls/push_tokens.md`](../docs/rls/push_tokens.md).
 
 ## Arquitectura — ADRs
 

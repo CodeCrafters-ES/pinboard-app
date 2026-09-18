@@ -27,3 +27,11 @@ dist/
 *.jks
 google-services*.json
 GoogleService-Info.plist
+
+# Proyectos nativos generados (CNG) — se regeneran con expo prebuild
+android/
+ios/
+
+# Volcados de base de datos (contienen datos personales y hashes de contraseña)
+prod-data*.sql
+

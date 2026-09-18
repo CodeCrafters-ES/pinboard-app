@@ -12,6 +12,9 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // Los módulos de send-push se comparten entre el runtime Deno (que exige la
+    // extensión en imports relativos) y los tests de Jest, que los importan directamente.
+    "allowImportingTsExtensions": true,
     "paths": {
       "@/*": [
         "./*"

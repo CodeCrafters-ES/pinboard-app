@@ -1,0 +1,208 @@
+# Edge Function: `send-push`
+
+Punto de entrada de los **Database Webhooks** de Supabase para las notificaciones push.
+Postgres avisa a esta función cuando se publica un post, se crea un evento o llega un
+mensaje de chat, y ella resuelve destinatarios y llama a la Expo Push API. Implementa el
+payload de [ADR-003](../../../docs/adr/0003-push-deep-linking.md).
+
+**Issues:** I-F-N06-02-01 (#269), I-F-N06-02-02 (#270), I-F-N06-02-03 (#271),
+I-F-N07-05-01 (#289) · **Features:** F-N06-02 (#265), F-N07-05 (#279)
+
+> **Estado.** Completa para posts, eventos y mensajes de chat. El webhook de `messages`
+> se habilita por entorno (ver [Configuración](#configuración)).
+
+## Módulos
+
+| Fichero | Rol |
+|---|---|
+| `index.ts` | Autenticación, validación, idempotencia y orquestación |
+| `messages.ts` | Copy en ES, fecha en `Europe/Madrid`, truncado (120 general, 80 en chat) |
+| `expo.ts` | Llamada a la Expo Push API en lotes de 100 y recolección de tickets |
+| `recipients.ts` | Destinatarios: mapeo del autor, broadcast excluyéndolo y participantes de un chat |
+| `../_shared/push/tickets.ts` | Clasificación de acuses de Expo |
+| `../_shared/push/purge.ts` | Borrado de tokens inválidos y cola de receipts |
+
+Ninguno de esos módulos importa nada de Deno —el cliente Supabase y `fetch` llegan por
+parámetro—, así que los tests de Jest los ejercitan directamente. De ahí la extensión
+explícita en los imports relativos: Deno la exige y `allowImportingTsExtensions` deja
+que tsc y Jest la resuelvan igual. Lo que está en `_shared` es lo que comparte con
+[`process-push-receipts`](../process-push-receipts/README.md).
+
+## Contrato
+
+`POST /functions/v1/send-push`
+
+**Auth:** secreto compartido en `Authorization: Bearer <PUSH_WEBHOOK_SECRET>`. No hay
+JWT de usuario: la llamada es servidor-a-servidor desde Postgres. Se acepta también la
+`SUPABASE_SERVICE_ROLE_KEY`, que es lo que rellena por defecto el asistente de webhooks
+de Studio. Sin ninguno de los dos configurados, **todo** se rechaza con 401.
+
+Por eso `verify_jwt = false` para esta función (`supabase/config.toml`): el secreto del
+webhook no es un JWT del proyecto y la plataforma lo rechazaría antes de llegar aquí.
+
+**Body:** payload estándar de Database Webhooks.
+
+```jsonc
+{
+  "type": "INSERT",        // INSERT | UPDATE | DELETE
+  "table": "posts",        // posts | events | messages
+  "schema": "public",
+  "record": {              // fila completa; solo se validan los campos necesarios
+    "id": "uuid",
+    "title": "Nueva carta de temporada",
+    "author_id": "uuid",
+    "created_at": "2026-08-04T10:00:00Z",
+    "status": "published"
+  },
+  "old_record": null       // presente en UPDATE
+}
+```
+
+Campos mínimos por tabla:
+
+| Tabla | Requeridos |
+|---|---|
+| `posts` | `id`, `title`, `author_id`, `created_at`, `status` |
+| `events` | `id`, `title`, `author_id` (nullable), `created_at`, `event_start_at` |
+| `messages` | `id`, `chat_id`, `sender_id`, `created_at` |
+
+Los campos extra de la fila se ignoran sin error.
+
+## Cuándo se notifica
+
+| Caso | Resultado |
+|---|---|
+| `INSERT` de post con `status = 'published'` | Despacha |
+| `UPDATE` de post con transición `draft → published` | Despacha |
+| `INSERT` de post en borrador | `reason: post_not_published` |
+| `UPDATE` de post ya publicado (edición) | `reason: post_already_published` |
+| `INSERT` de evento | Despacha |
+| `INSERT` de mensaje | Despacha (a los participantes del chat ≠ remitente) |
+| `UPDATE`/`DELETE` de evento o mensaje | `reason: operation_not_notifiable` |
+
+La transición `draft → published` **no es opcional**: los posts se crean como borrador
+y se publican después (`hooks/usePosts.ts`), así que colgar el push solo del `INSERT`
+dejaría sin notificar el flujo real de publicación.
+
+## Destinatarios y contenido
+
+| Evento | Destinatarios | Título | Cuerpo |
+|---|---|---|---|
+| Post publicado | Todos los tokens menos los del autor | `Nuevo post` | Título del post (≤120) |
+| Evento nuevo | Todos los tokens menos los del autor | `Nuevo evento` | `Título · vie 24 jul, 17:00` |
+| Mensaje de chat | Participantes del chat ≠ remitente | Nombre del emisor | Extracto del mensaje (≤80) |
+
+`data` sigue ADR-003: `{ type: 'post' | 'event' | 'chat', id }` (para chat, `id` es el
+`chat_id`, no el del mensaje). Canal `general` para post/evento; `chat` con
+`priority: high` para mensajes.
+
+**Destinatarios de chat.** A diferencia del broadcast de posts/eventos, el push de un
+mensaje va solo a los `chat_participants` del chat distintos del remitente (`neq`), y
+luego a sus `push_tokens` (`in`). El nombre del remitente para el título se lee de
+`profiles_public`. `send-push` corre con `service_role`; el acceso a `chat_participants`
+y `profiles_public` lo concede la migración `20260810000000_grant_chat_push_service_role.sql`.
+
+**Exclusión del autor.** `posts.author_id` referencia `profiles.id`, mientras que
+`push_tokens.user_id` guarda `auth.uid()`: hace falta traducir uno en otro leyendo
+`profiles`, que es la única tabla con esa doble identidad. `events.author_id` ya es
+`auth.users(id)` y se usa directamente. Por eso `service_role` necesita `SELECT` sobre
+`profiles` (migración `20260804000000`); sin él, el autor recibiría su propia
+publicación.
+
+No se filtra por rol ni por "usuario activo": `push_tokens` cascadea desde `profiles`,
+así que un perfil borrado se lleva sus tokens por delante.
+
+**Envío.** Lotes de 100 (límite de Expo). Un lote que falla no aborta los demás: sus
+tokens cuentan en `failed_count` y el bucle sigue. Sin destinatarios no se llama a
+Expo.
+
+**Purga.** Cada ticket vuelve con su `(user_id, token)`. Los que Expo rechaza en el
+acto con `DeviceNotRegistered` o `InvalidCredentials` se borran de `push_tokens` ahí
+mismo; `MessageTooBig` y `MessageRateExceeded` solo se registran, porque el token
+sigue siendo válido; un código desconocido no purga nada. Los aceptados se encolan en
+`push_receipts_pending`, ya que el resultado definitivo llega en el receipt que
+consulta [`process-push-receipts`](../process-push-receipts/README.md) más tarde.
+
+## Respuestas
+
+| Código | Caso |
+|---|---|
+| `200` | `{ ok: true, dispatched: true }` — aceptado, el envío sigue en segundo plano. |
+| `200` | `{ ok: true, dispatched: false, reason }` — no procede notificar. |
+| `200` | `{ ok: true, dispatched: false, deduplicated: true }` — repetido en < 60 s. |
+| `400` | JSON malformado o payload que no valida (con `issues` de Zod). |
+| `401` | Falta el `Authorization` o el secreto no coincide. |
+| `405` | Método distinto de `POST`. |
+
+Siempre responde rápido: la validación es síncrona y el envío se delega a
+`EdgeRuntime.waitUntil`, de modo que un fallo de Expo no bloquea el webhook ni
+encadena reintentos de `pg_net`.
+
+## Idempotencia
+
+`pg_net` reintenta ante timeouts, así que el mismo INSERT puede llegar dos veces. Se
+descarta el duplicado de `(table, record.id)` dentro de una ventana de **60 s**, con un
+mapa en memoria del worker. No cubre reintentos servidos por workers distintos; si eso
+llegara a producir push duplicados en producción, el siguiente paso es una tabla
+`push_sent` con `unique (table, record_id)`.
+
+## Logs
+
+JSON estructurado, un evento por request:
+
+```jsonc
+// send-push
+{ "table": "posts", "type": "INSERT", "record_id": "…",
+  "recipients_count": 12, "sent_count": 11, "failed_count": 1, "purged_count": 1, "duration_ms": 84 }
+
+// send-push ignored
+{ "table": "posts", "type": "INSERT", "record_id": "…", "reason": "post_not_published" }
+
+// send-push purge (solo si hubo algo que purgar o registrar)
+{ "purged_count": 1, "enqueued_count": 11, "reasons": { "purged": 1 } }
+```
+
+`recipients_count` son los destinatarios resueltos antes de enviar. Es el campo que
+distingue «no había a quién notificar» de «se intentó y falló todo»: sin él, ambos
+casos dejan `sent_count` y `failed_count` a cero y se leen igual.
+
+## Configuración
+
+| Variable | Uso |
+|---|---|
+| `PUSH_WEBHOOK_SECRET` | Secreto compartido con el trigger. `supabase secrets set PUSH_WEBHOOK_SECRET=…` |
+| `SUPABASE_SERVICE_ROLE_KEY` | La inyecta la plataforma; alternativa aceptada como Bearer y necesaria para leer `profiles`, `push_tokens`, `chat_participants` y `profiles_public`. |
+| `SUPABASE_URL` | La inyecta la plataforma. |
+| `EXPO_PUSH_URL` | Opcional. Redirige el envío; por defecto, la Expo Push API. En local y CI apunta a un puerto cerrado (ver abajo). |
+
+Los pasos para crear los webhooks en un entorno nuevo están en
+[`docs/push.md`](../../../docs/push.md#database-webhooks); el script reproducible es
+[`supabase/webhooks/send_push_webhooks.sql`](../../webhooks/send_push_webhooks.sql). El
+trigger de `messages` (push de chat) **no** se crea por defecto: hay que ejecutar el script
+con `-v enable_messages=true`.
+
+## Tests
+
+| Fichero | Cubre | Job |
+|---|---|---|
+| `__tests__/lib/sendPushMessages.test.ts` | Copy, truncado y fecha localizada | `test` |
+| `__tests__/lib/sendPushExpo.test.ts` | Troceado en 100, tickets y errores parciales (`fetch` mockeado) | `test` |
+| `__tests__/integration/sendPushRecipients.test.ts` | Mapeo del autor, exclusión y destinatarios de chat, contra la BD local | `integration-test` |
+| `__tests__/integration/sendPush.test.ts` | Auth, validación, notificabilidad, idempotencia | `integration-test` |
+| `supabase/tests/rls/grants_send_push.sql` | GRANTs de `service_role` sobre `profiles` | `rls-tests` |
+
+```bash
+npx supabase start
+npx supabase functions serve --env-file supabase/functions/.env.test
+npx jest --testPathPattern="sendPush"
+```
+
+El envío real contra `exp.host` no se ejercita en los tests: requiere tokens de
+dispositivos reales y credenciales push del proyecto.
+
+**En local y en CI, `EXPO_PUSH_URL` apunta a un puerto cerrado a propósito**
+(`supabase/functions/.env.test`). No es solo por no depender de la red: Expo responde
+`DeviceNotRegistered` a los tokens de prueba y la purga los borraría de la base,
+llevándose por delante las filas de las suites que corren en paralelo. Con el destino
+inalcanzable, el envío cuenta fallos y no clasifica ningún ticket, así que no purga ni
+encola nada. Las suites que sí ejercitan el envío inyectan su propio doble de `fetch`.

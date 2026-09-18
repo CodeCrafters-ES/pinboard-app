@@ -13,6 +13,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 import type { Database } from '@/lib/database.types';
+import { withClockSkewRetry } from './_retry';
 
 jest.mock('@/lib/supabase', () => ({ supabase: {} }));
 
@@ -107,19 +108,23 @@ describe('track-engagement Edge Function (integration)', () => {
   let authorId: string;
 
   beforeAll(async () => {
-    const mgr = await managerClient.auth.signInWithPassword(MANAGER);
-    if (mgr.error) throw mgr.error;
-    const { data: profile, error: pErr } = await managerClient
-      .from('profiles')
-      .select('id')
-      .eq('email', MANAGER.email)
-      .single();
-    if (pErr) throw pErr;
-    authorId = profile.id;
+    // Reintenta el bootstrap ante el clock-skew transitorio tras `supabase start`
+    // ("JWT issued at future"). Es idempotente: no crea datos.
+    await withClockSkewRetry(async () => {
+      const mgr = await managerClient.auth.signInWithPassword(MANAGER);
+      if (mgr.error) throw mgr.error;
+      const { data: profile, error: pErr } = await managerClient
+        .from('profiles')
+        .select('id')
+        .eq('email', MANAGER.email)
+        .single();
+      if (pErr) throw pErr;
+      authorId = profile.id;
 
-    const staff = await staffClient.auth.signInWithPassword(STAFF);
-    if (staff.error) throw staff.error;
-    staffToken = staff.data.session!.access_token;
+      const staff = await staffClient.auth.signInWithPassword(STAFF);
+      if (staff.error) throw staff.error;
+      staffToken = staff.data.session!.access_token;
+    });
 
     // Warm up the edge function so the cold start is paid here (covered by the
     // 30s hook timeout) and the individual tests run against a warm worker.

@@ -38,9 +38,10 @@ El cliente se suscribe a cambios Postgres en la tabla `messages` para el `chat_i
 
 ```sql
 create table public.chats (
-  id         uuid        primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  is_group   boolean     not null default false
+  id              uuid        primary key default gen_random_uuid(),
+  created_at      timestamptz not null default now(),
+  is_group        boolean     not null default false,
+  last_message_at timestamptz not null default now()  -- denormalizado: ordena la lista de chats
 );
 ```
 
@@ -69,11 +70,12 @@ create table public.messages (
   sender_id  uuid        not null references auth.users(id) on delete cascade,
   content    text        not null check (char_length(content) between 1 and 4000),
   created_at timestamptz not null default now(),
+  edited_at  timestamptz,
   deleted_at timestamptz
 );
 ```
 
-`deleted_at` implementa soft-delete: el cliente no muestra el mensaje si `deleted_at is not null`, pero el historial de la conversación permanece coherente (sin huecos visuales).
+`deleted_at` implementa soft-delete: el cliente no muestra el mensaje si `deleted_at is not null`, pero el historial de la conversación permanece coherente (sin huecos visuales). `edited_at` (nullable) lo fija un trigger `BEFORE UPDATE OF content` cuando cambia el texto, para mostrar la etiqueta «editado»; la ventana de edición (p. ej. 15 min) es una regla de UX en cliente, no en RLS. `chats.last_message_at` lo actualiza un trigger `AFTER INSERT` en `messages`.
 
 ---
 
@@ -160,11 +162,12 @@ create policy "messages_insert" on public.messages
     and public.is_chat_participant(chat_id)
   );
 
--- UPDATE: solo el remitente puede editar el contenido o hacer soft-delete (deleted_at)
+-- UPDATE: el remitente edita su contenido o hace soft-delete; un admin puede
+-- moderar (soft-delete) cualquier mensaje. Consistente con la matriz RBAC (ADR-002).
 create policy "messages_update" on public.messages
   for update to authenticated
-  using (sender_id = auth.uid())
-  with check (sender_id = auth.uid());
+  using (sender_id = auth.uid() or is_admin())
+  with check (sender_id = auth.uid() or is_admin());
 ```
 
 > `DELETE` físico no está permitido en ningún rol de cliente. El soft-delete (`deleted_at = now()`) pasa por la policy de UPDATE.
@@ -290,6 +293,7 @@ interface Message {
   sender_id: string;
   content: string;
   created_at: string;        // ISO 8601
+  edited_at: string | null;
   deleted_at: string | null;
   _status?: MessageStatus;   // presente solo en mensajes optimistas
 }
@@ -370,6 +374,100 @@ Los mensajes también viajan por Broadcast y el INSERT en Postgres lo hace el re
 **Pros:** menor latencia percibida.
 
 **Contras:** el remitente no sabe si el mensaje fue guardado; sin reconexión automática los mensajes se pierden; RLS no aplica en Broadcast. Descartado por inconsistencia en escenarios de red inestable.
+
+---
+
+## Addendum — F-N07-01 · Modelo de datos ([#275](https://github.com/CodeCrafters-ES/pinboard-app/issues/275))
+
+**Fecha:** 2026-07-31
+
+La feature #275 implementa el modelo SQL de este ADR. Durante su diseño se resolvieron tres puntos que el ADR original no detallaba o que convenía reafirmar frente a la convención más reciente del repo.
+
+### 1. Target de los FK de usuario → `auth.users(id)` (confirmado)
+
+`chat_participants.user_id` y `messages.sender_id` apuntan a `auth.users(id)`, tal como especifica el modelo SQL de arriba. Se reafirma frente a la divergencia de `posts.author_id → profiles(id)`:
+
+- `profiles.id` es un surrogate (`gen_random_uuid()`) distinto de `auth.users.id`; el puente a auth es `profiles.user_id`. Con FK a `profiles(id)`, cada policy exige un subselect correlacionado `(select id from profiles where user_id = auth.uid())`.
+- Con FK a `auth.users(id)`, la RLS es el directo `= auth.uid()`, más barato en el camino caliente de `messages` INSERT y en la reevaluación por-broadcast de Realtime.
+- Es la convención dominante del repo (`post_reactions`, `post_ratings`, `post_comments`, `engagement_sessions`, `events`). `posts` fue la excepción y forzó una migración correctiva de RLS.
+
+**Consecuencia:** la RLS de F-N07-02 usa `= auth.uid()` sin subselects. Nombre/avatar del emisor se resuelven con join `messages.sender_id = profiles.user_id` (`user_id` es `UNIQUE`).
+
+### 2. Unicidad del par 1:1
+
+No hay forma declarativa de imponer "dos filas de `chat_participants` forman un par único no ordenado". Se denormaliza el par canónico sobre `chats` y se impone con un índice único parcial:
+
+```sql
+alter table public.chats
+  add column dm_lo uuid references auth.users(id),
+  add column dm_hi uuid references auth.users(id),
+  add constraint chats_dm_pair_order check (dm_lo < dm_hi);
+
+create unique index chats_dm_pair_idx
+  on public.chats (dm_lo, dm_hi)
+  where is_group = false;
+```
+
+- El `check (dm_lo < dm_hi)` canonicaliza el orden: `(A,B)` y `(B,A)` colisionan.
+- El índice es atómico y race-free por construcción (crítico: el modal "nuevo-chat" permite que dos usuarios inicien el chat mutuo a la vez). Un trigger de validación no lo garantiza sin `pg_advisory_xact_lock`.
+- El `where is_group = false` deja los grupos futuros (`is_group` reservado) fuera de la restricción; `dm_lo/dm_hi` quedan `null`.
+- **Caveat:** el par vive denormalizado en `chats.dm_lo/hi` *y* como dos filas en `chat_participants`. Se mantiene coherente creando chat + participantes en una sola transacción/RPC.
+
+Patrón alineado con los índices parciales ya existentes en `posts` (`posts_feed_idx where deleted_at is null`).
+
+### 3. `chats.last_message_at` mantenido por trigger
+
+Para ordenar la lista "mis chats por actividad":
+
+```sql
+alter table public.chats add column last_message_at timestamptz;
+
+create index chats_activity_idx on public.chats (last_message_at desc);
+
+create or replace function public.bump_chat_last_message_at()
+returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  update public.chats
+    set last_message_at = greatest(coalesce(last_message_at, new.created_at), new.created_at)
+  where id = new.chat_id;
+  return new;
+end;
+$$;
+
+create trigger messages_touch_chat
+  after insert on public.messages
+  for each row execute function public.bump_chat_last_message_at();
+```
+
+- Atómico con el INSERT: `last_message_at` nunca diverge.
+- `chats` **no expone policy de UPDATE al cliente** (el ADR solo define SELECT/INSERT); el trigger `SECURITY DEFINER` toca la columna. Evita ensanchar la superficie de la tabla raíz del chat.
+- Sin round-trip extra en el envío optimista; compatible con la idempotencia offline (`INSERT ... ON CONFLICT DO NOTHING` no inserta fila → el trigger no dispara).
+- Mismo patrón que el trigger `set_updated_at` ya establecido en el repo (timestamp derivado mantenido server-side).
+
+## Addendum — Endurecimiento del soft delete ([#330](https://github.com/CodeCrafters-ES/pinboard-app/issues/330))
+
+**Fecha:** 2026-08-08
+
+El diseño original enmascaraba el `content` de los mensajes borrados solo en la vista `messages_public_v` y en el cliente (`maskDeleted`). La auditoría de la EPIC detectó que eso no cumple el DoD (*"el content original no es accesible al cliente"*): la policy `messages_select_participant` permite `SELECT` sobre la **tabla base** `messages` y `authenticated` tiene `GRANT SELECT`, así que cualquier participante del DM podía recuperar el texto de un borrado por la tabla base o por REST (`/rest/v1/messages`), y el payload de Realtime `postgres_changes` también lo transportaba.
+
+**Decisión:** borrar físicamente el `content` en el soft delete con un trigger `BEFORE UPDATE`:
+
+```sql
+create trigger messages_clear_content_on_soft_delete
+  before update on public.messages
+  for each row execute function public.messages_clear_content_on_soft_delete();
+-- pone new.content = '' en la transición deleted_at null → not null
+```
+
+- Al reescribir `NEW.content` antes de persistir, el texto desaparece de la tabla base, de REST y del WAL (y por tanto del payload de Realtime). La fila y sus metadatos (`deleted_at`, `sender_id`, `created_at`) se conservan: sigue siendo *soft* delete.
+- El `CHECK` de longitud se relaja para admitir `''` solo cuando `deleted_at is not null`; el INSERT de un mensaje vacío sigue rechazándose (`23514`).
+- No interfiere con `messages_set_edited_at` (`BEFORE UPDATE OF content`, no dispara en un `update ... set deleted_at`) ni con `messages_freeze_identity`.
+- La vista `messages_public_v` y `maskDeleted` en el cliente se mantienen como **defensa en profundidad**.
+
+Migración: `20260813000000_clear_message_content_on_soft_delete.sql`. Reemplaza el "límite conocido (Realtime)" que documentaba el ADR/`docs/chat.md`.
 
 ---
 

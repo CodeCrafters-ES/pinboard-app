@@ -34,6 +34,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_direct_pairs: {
+        Row: {
+          chat_id: string
+          user_a: string
+          user_b: string
+        }
+        Insert: {
+          chat_id: string
+          user_a: string
+          user_b: string
+        }
+        Update: {
+          chat_id?: string
+          user_a?: string
+          user_b?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_direct_pairs_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: true
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_direct_pairs_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: true
+            referencedRelation: "my_chats_v"
+            referencedColumns: ["chat_id"]
+          },
+        ]
+      }
+      chat_participants: {
+        Row: {
+          chat_id: string
+          joined_at: string
+          last_read_at: string
+          user_id: string
+        }
+        Insert: {
+          chat_id: string
+          joined_at?: string
+          last_read_at?: string
+          user_id: string
+        }
+        Update: {
+          chat_id?: string
+          joined_at?: string
+          last_read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_participants_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_participants_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "my_chats_v"
+            referencedColumns: ["chat_id"]
+          },
+        ]
+      }
+      chats: {
+        Row: {
+          created_at: string
+          id: string
+          is_group: boolean
+          last_message_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_group?: boolean
+          last_message_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_group?: boolean
+          last_message_at?: string
+        }
+        Relationships: []
+      }
       engagement_sessions: {
         Row: {
           device: string | null
@@ -132,6 +222,51 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      messages: {
+        Row: {
+          chat_id: string
+          content: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          sender_id: string
+        }
+        Insert: {
+          chat_id: string
+          content: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          sender_id: string
+        }
+        Update: {
+          chat_id?: string
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "my_chats_v"
+            referencedColumns: ["chat_id"]
+          },
+        ]
       }
       post_comments: {
         Row: {
@@ -352,6 +487,42 @@ export type Database = {
         }
         Relationships: []
       }
+      push_receipts_pending: {
+        Row: {
+          enqueued_at: string
+          ticket_id: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          enqueued_at?: string
+          ticket_id: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          enqueued_at?: string
+          ticket_id?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_receipts_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "push_receipts_pending_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       push_tokens: {
         Row: {
           created_at: string
@@ -383,7 +554,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "push_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       role_audit: {
         Row: {
@@ -427,8 +613,113 @@ export type Database = {
           },
         ]
       }
+      user_blocks: {
+        Row: {
+          blocked_user_id: string
+          blocker_user_id: string
+          created_at: string
+        }
+        Insert: {
+          blocked_user_id: string
+          blocker_user_id: string
+          created_at?: string
+        }
+        Update: {
+          blocked_user_id?: string
+          blocker_user_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      user_points: {
+        Row: {
+          awarded_at: string
+          id: string
+          points: number
+          source_id: string
+          source_type: Database["public"]["Enums"]["points_source"]
+          user_id: string
+        }
+        Insert: {
+          awarded_at?: string
+          id?: string
+          points: number
+          source_id: string
+          source_type: Database["public"]["Enums"]["points_source"]
+          user_id: string
+        }
+        Update: {
+          awarded_at?: string
+          id?: string
+          points?: number
+          source_id?: string
+          source_type?: Database["public"]["Enums"]["points_source"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
+      messages_public_v: {
+        Row: {
+          chat_id: string | null
+          content: string | null
+          created_at: string | null
+          deleted_at: string | null
+          edited_at: string | null
+          id: string | null
+          sender_id: string | null
+        }
+        Insert: {
+          chat_id?: string | null
+          content?: never
+          created_at?: string | null
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string | null
+          sender_id?: string | null
+        }
+        Update: {
+          chat_id?: string | null
+          content?: never
+          created_at?: string | null
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string | null
+          sender_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "my_chats_v"
+            referencedColumns: ["chat_id"]
+          },
+        ]
+      }
+      my_chats_v: {
+        Row: {
+          chat_id: string | null
+          is_group: boolean | null
+          last_message_at: string | null
+          last_message_content: string | null
+          last_message_sender_id: string | null
+          last_read_at: string | null
+          partner_avatar_url: string | null
+          partner_name: string | null
+          partner_user_id: string | null
+          unread_count: number | null
+        }
+        Relationships: []
+      }
       post_engagement_daily: {
         Row: {
           avg_rating: number | null
@@ -511,13 +802,46 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      award_points: {
+        Args: {
+          p_points: number
+          p_post_id: string
+          p_source: Database["public"]["Enums"]["points_source"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      create_or_get_direct_chat: {
+        Args: { other_user: string }
+        Returns: string
+      }
+      direct_chat_blocked: { Args: { other_user: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_blocked: { Args: { p_a: string; p_b: string }; Returns: boolean }
+      is_chat_participant: { Args: { p_chat_id: string }; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
+      leaderboard: {
+        Args: { limit_n?: number; period_end: string; period_start: string }
+        Returns: {
+          avatar_url: string
+          full_name: string
+          is_self: boolean
+          rank: number
+          total_points: number
+          user_id: string
+        }[]
+      }
       refresh_post_engagement_daily: { Args: never; Returns: undefined }
     }
     Enums: {
       event_color: "brown" | "sea" | "sage" | "amber" | "parchment"
+      points_source:
+        | "post_viewed"
+        | "post_clicked"
+        | "post_reacted"
+        | "post_rated"
+        | "post_commented"
       reaction_type: "like" | "dislike" | "love"
       user_role: "staff" | "manager" | "admin"
     }
@@ -651,8 +975,16 @@ export const Constants = {
   public: {
     Enums: {
       event_color: ["brown", "sea", "sage", "amber", "parchment"],
+      points_source: [
+        "post_viewed",
+        "post_clicked",
+        "post_reacted",
+        "post_rated",
+        "post_commented",
+      ],
       reaction_type: ["like", "dislike", "love"],
       user_role: ["staff", "manager", "admin"],
     },
   },
 } as const
+

@@ -12,6 +12,11 @@ jest.mock('expo-image-manipulator', () => ({
   SaveFormat: { WEBP: 'webp' },
 }));
 
+// decode(base64) → ArrayBuffer; el tamaño del buffer sale de la longitud del base64.
+jest.mock('base64-arraybuffer', () => ({
+  decode: (b64: string) => new ArrayBuffer(b64.length),
+}));
+
 jest.mock('@/lib/supabase', () => ({
   supabase: {
     storage: {
@@ -39,19 +44,25 @@ describe('prepareImageForUpload', () => {
   it('caps the larger side to 1920px and compresses at 0.85 for posts', async () => {
     mockFetchReturningBlob(120 * 1024);
     // First call = dimension probe (landscape), second = real resize.
+    // base64 de 120 KB → el ArrayBuffer decodificado mide 120 KB (sizeKB = 120).
     mockManipulateAsync
       .mockResolvedValueOnce({ uri: 'file://probe', width: 4000, height: 3000 })
-      .mockResolvedValueOnce({ uri: 'file://out.webp', width: 1920, height: 1440 });
+      .mockResolvedValueOnce({
+        uri: 'file://out.webp',
+        width: 1920,
+        height: 1440,
+        base64: 'a'.repeat(120 * 1024),
+      });
 
     const result = await prepareImageForUpload({ uri: 'file://photo.jpg' }, 'post');
 
     expect(mockManipulateAsync).toHaveBeenLastCalledWith(
       'file://photo.jpg',
       [{ resize: { width: 1920 } }],
-      { compress: 0.85, format: 'webp' },
+      { compress: 0.85, format: 'webp', base64: true },
     );
     expect(result).toEqual({
-      blob: expect.anything(),
+      bytes: expect.any(ArrayBuffer),
       mime: 'image/webp',
       width: 1920,
       height: 1440,
@@ -63,14 +74,14 @@ describe('prepareImageForUpload', () => {
     mockFetchReturningBlob(80 * 1024);
     mockManipulateAsync
       .mockResolvedValueOnce({ uri: 'file://probe', width: 1000, height: 2000 })
-      .mockResolvedValueOnce({ uri: 'file://out.webp', width: 960, height: 1920 });
+      .mockResolvedValueOnce({ uri: 'file://out.webp', width: 960, height: 1920, base64: 'a' });
 
     await prepareImageForUpload({ uri: 'file://tall.jpg' }, 'post');
 
     expect(mockManipulateAsync).toHaveBeenLastCalledWith(
       'file://tall.jpg',
       [{ resize: { height: 1920 } }],
-      { compress: 0.85, format: 'webp' },
+      { compress: 0.85, format: 'webp', base64: true },
     );
   });
 
@@ -78,14 +89,14 @@ describe('prepareImageForUpload', () => {
     mockFetchReturningBlob(40 * 1024);
     mockManipulateAsync
       .mockResolvedValueOnce({ uri: 'file://probe', width: 2048, height: 2048 })
-      .mockResolvedValueOnce({ uri: 'file://out.webp', width: 1024, height: 1024 });
+      .mockResolvedValueOnce({ uri: 'file://out.webp', width: 1024, height: 1024, base64: 'a' });
 
     await prepareImageForUpload({ uri: 'file://me.jpg' }, 'avatar');
 
     expect(mockManipulateAsync).toHaveBeenLastCalledWith(
       'file://me.jpg',
       [{ resize: { width: 1024 } }],
-      { compress: 0.8, format: 'webp' },
+      { compress: 0.8, format: 'webp', base64: true },
     );
   });
 
@@ -101,7 +112,7 @@ describe('prepareImageForUpload', () => {
 
 describe('uploadImage', () => {
   const prepared = {
-    blob: {} as Blob,
+    bytes: new ArrayBuffer(8),
     mime: 'image/webp' as const,
     width: 1920,
     height: 1080,
@@ -118,7 +129,7 @@ describe('uploadImage', () => {
 
     expect(mockStorageUpload).toHaveBeenCalledWith(
       'u/avatar.webp',
-      prepared.blob,
+      prepared.bytes,
       { contentType: 'image/webp', upsert: true },
     );
     expect(result).toEqual({

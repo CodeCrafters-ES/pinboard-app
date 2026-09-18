@@ -1,3 +1,4 @@
+import { removeCurrentDevicePushToken } from './notifications/pushToken';
 import { supabase } from './supabase';
 import type { Database } from './database.types';
 
@@ -8,17 +9,16 @@ export async function signInWithPassword(email: string, password: string) {
 }
 
 export async function signOut() {
-  // Remove all push tokens for this user before invalidating session so the
-  // DELETE runs while the session is still active. Errors are non-fatal.
+  // Solo el token de ESTE dispositivo, y antes de invalidar la sesión: el DELETE
+  // necesita `auth.uid()` vivo (RLS own) y borrar por user_id dejaría sin push al
+  // resto de dispositivos del usuario. Los errores no son fatales.
   try {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (session) {
-      await supabase.from('push_tokens').delete().eq('user_id', session.user.id);
-    }
+    if (session) await removeCurrentDevicePushToken(session.user.id);
   } catch {
-    // Non-fatal: push_tokens table may not exist yet or no active session
+    // Sin sesión activa o sin red: el logout local sigue adelante.
   }
 
   const { error } = await supabase.auth.signOut();

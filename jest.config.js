@@ -8,5 +8,7 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
-  testPathIgnorePatterns: ['/node_modules/', '/\\.expo/'],
+  // Los helpers compartidos de tests usan prefijo `_` (p. ej.
+  // __tests__/integration/_retry.ts) y no son suites: no deben ejecutarse.
+  testPathIgnorePatterns: ['/node_modules/', '/\\.expo/', '/__tests__/.*/_'],
 };

@@ -3,12 +3,14 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 
 import { useSession } from '@/hooks/useSession';
 
-// Staff can never enter the admin section; managers may reach post management and
-// the (read-only) user list, but not the admin panel index — invitations and role
-// changes stay admin-only.
+// Staff can never enter the admin section; managers may reach post/event
+// management and the (read-only) user list, but not the admin panel index —
+// invitations and role changes stay admin-only.
 function canEnter(role: string | undefined, adminRoute: string | undefined): boolean {
   if (role === 'admin') return true;
-  if (role === 'manager') return adminRoute === 'posts' || adminRoute === 'users';
+  if (role === 'manager') {
+    return adminRoute === 'posts' || adminRoute === 'events' || adminRoute === 'users';
+  }
   return false;
 }
 
