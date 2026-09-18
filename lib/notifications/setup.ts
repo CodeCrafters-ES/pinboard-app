@@ -11,7 +11,9 @@ import { setupAndroidChannels } from './setupChannels';
 export function configureNotificationHandler(): void {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      // expo-notifications 0.32 sustituye `shouldShowAlert` por banner + lista.
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       // El badge de no leídos no está en el alcance del MVP (EPIC-N06).
       shouldSetBadge: false,

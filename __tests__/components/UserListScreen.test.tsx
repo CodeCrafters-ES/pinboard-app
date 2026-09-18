@@ -91,9 +91,12 @@ jest.mock('react-native-safe-area-context', () => {
 jest.mock('react-native/Libraries/Modal/Modal', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View } = require('react-native');
-  return function MockModal({ children, visible }: { children: React.ReactNode; visible: boolean }) {
+  function MockModal({ children, visible }: { children: React.ReactNode; visible: boolean }) {
     return visible ? <View>{children}</View> : null;
-  };
+  }
+  // RN 0.81 importa este módulo interno como ES module (usa `.default`); el mock
+  // debe exponer __esModule/default o Modal queda undefined.
+  return { __esModule: true, default: MockModal };
 });
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
