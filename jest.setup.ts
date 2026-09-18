@@ -15,12 +15,3 @@ jest.mock('@react-native-community/netinfo', () => ({
     ),
   },
 }));
-
-// expo-router 6: `<Stack.Screen>` llama a useRoute() y lanza fuera de un navegador.
-// Las pantallas se renderizan aisladas en los tests (sin navegador), así que se
-// neutraliza como no-op. En la app real siempre viven dentro de un Stack.
-jest.mock('expo-router', () => {
-  const actual = jest.requireActual('expo-router');
-  actual.Stack.Screen = () => null;
-  return actual;
-});
