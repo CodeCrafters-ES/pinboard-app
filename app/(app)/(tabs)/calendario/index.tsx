@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -182,7 +182,11 @@ export default function CalendarioScreen() {
             hideExtraDays
             markingType="multi-dot"
             markedDates={marked}
-            dayComponent={dayComponent}
+            dayComponent={
+              // react-native-calendars pasa su MarkingProps (más laxo) donde la celda
+              // custom usa DayMarking (más estricto); en runtime el marcado es DayMarking.
+              dayComponent as unknown as ComponentProps<typeof Calendar>['dayComponent']
+            }
             onDayPress={(d: DateData) => setSelectedDate(d.dateString)}
             onMonthChange={(m: DateData) => setMonthAnchor(m.dateString)}
             theme={CALENDAR_THEME}
