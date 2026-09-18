@@ -93,7 +93,9 @@ describe('SetPasswordScreen', () => {
     await waitFor(() => expect(screen.getByText('Enlace inválido')).toBeTruthy(), {
       timeout: 4000,
     });
-  });
+    // El timeout interno de 3 s deja poco margen sobre el límite por test de 5 s de
+    // Jest bajo carga; se sube explícitamente para evitar flakiness.
+  }, 10000);
 
   it('shows error state when setSession returns an error (expired token)', async () => {
     mockOnAuthStateChange.mockReturnValue({

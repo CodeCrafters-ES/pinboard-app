@@ -69,7 +69,8 @@ describe('configureNotificationHandler', () => {
     expect(mockSetNotificationHandler).toHaveBeenCalledTimes(1);
     const handler = mockSetNotificationHandler.mock.calls[0]![0];
     await expect(handler.handleNotification()).resolves.toEqual({
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
     });
